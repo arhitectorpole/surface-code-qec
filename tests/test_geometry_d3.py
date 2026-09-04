@@ -43,21 +43,23 @@ def test_d3_full_css_stabilizer_rank_is_12():
     # X stabilizers occupy the X half of the CSS Pauli vector;
     # Z stabilizers occupy the Z half. This preserves Pauli type.
     for _, qs in code["x_checks"]:
-        mask = sum(1 << q for q in qs)
-        rows.append(mask)
+        rows.append(sum(1 << q for q in qs))
     for _, qs in code["z_checks"]:
-        mask = sum(1 << (n + q) for q in qs)
-        rows.append(mask)
+        rows.append(sum(1 << (n + q) for q in qs))
 
     assert gf2_rank(rows, 2 * n) == 12
 
 
-def test_d3_syndrome_space_size():
+def test_d3_syndrome_ranks_and_space():
     code = build_unrotated_planar_surface_code(3)
-    # The 12 check generators are independent in the CSS stabilizer
-    # representation, hence there are 2^12 distinct syndrome labels
-    # for the corresponding independent check outcomes.
-    assert len(code["z_checks"]) + len(code["x_checks"]) == 12
+    n = len(code["data"])
+    z_incidence = [sum(1 << q for q in qs) for _, qs in code["z_checks"]]
+    x_incidence = [sum(1 << q for q in qs) for _, qs in code["x_checks"]]
+
+    # X data errors are detected by Z checks; Z data errors by X checks.
+    assert gf2_rank(z_incidence, n) == 6
+    assert gf2_rank(x_incidence, n) == 6
+    assert 2 ** (6 + 6) == 4096
 
 
 def test_decoder_graph_matches_s0_counts():
