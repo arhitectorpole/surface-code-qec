@@ -1,7 +1,7 @@
 """
 decoder_lib_v2.py - New baseline implementation for surface code decoding
 
-Status: BASELINE SKELETON
+Status: GEOMETRY STAGE
 Original S1 decoder_lib.py: UNAVAILABLE
 This implementation: NEW BASELINE (not reconstruction)
 Must not be used to retroactively validate S1 results.
@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 IMPLEMENTATION_RECORD = {
     "version": "v2.0",
-    "status": "skeleton",
+    "status": "geometry-stage",
     "code_type": "unrotated_planar_surface_code",
     "geometry_source": "s0_geometry.py (canonical)",
     "mwpm_backend": "TBD - detected at runtime",
@@ -91,6 +91,25 @@ def popcount(x: int) -> int:
     return x.bit_count()
 
 
+def compute_rank_gf2(rows: List[int], ncols: int) -> int:
+    """Rank of a binary matrix represented by integer bit rows."""
+    work = list(rows)
+    rank = 0
+    for col in range(ncols):
+        pivot = next(
+            (i for i in range(rank, len(work)) if (work[i] >> col) & 1),
+            None,
+        )
+        if pivot is None:
+            continue
+        work[rank], work[pivot] = work[pivot], work[rank]
+        for i in range(len(work)):
+            if i != rank and ((work[i] >> col) & 1):
+                work[i] ^= work[rank]
+        rank += 1
+    return rank
+
+
 def build_decoding_graph(d: int) -> DecodingGraph:
     """Build the S0-derived graph shell; MWPM edges are not yet implemented."""
     if d < 3 or d % 2 == 0:
@@ -116,10 +135,12 @@ def build_decoding_graph(d: int) -> DecodingGraph:
             check_masks.append(mask)
             check_id += 1
 
-    # This is the left-edge physical path in the canonical S0 coordinate frame.
+    # Physical logical-Z path inherited from the canonical S0 coordinate frame.
     logZ_set = {q for q, (i, j) in enumerate(data) if j == 0}
     logZ_mask = sum(1 << q for q in logZ_set)
 
+    # Boundary nodes are declared here; adjacency and physical distances are
+    # populated only when the MWPM decoding graph is implemented.
     boundary_nodes = {
         "top_Z": BoundaryNode("top_Z", "Z"),
         "bottom_Z": BoundaryNode("bottom_Z", "Z"),
@@ -141,6 +162,57 @@ def build_decoding_graph(d: int) -> DecodingGraph:
     )
 
 
+def audit_geometry(graph: DecodingGraph) -> Dict[str, object]:
+    """Audit geometry and CSS rank without claiming a complete decoder."""
+    expected_n_data = graph.d ** 2 + (graph.d - 1) ** 2
+    expected_n_checks = 2 * graph.d * (graph.d - 1)
+    n = graph.n_data
+
+    x_rows = [s.mask for s in []]  # kept empty intentionally; masks below are typed
+    x_rows = [
+        sum(1 << q for q in s.data_qubits)
+        for s in graph.stabilizers
+        if s.check_type is CheckType.X
+    ]
+    z_rows = [
+        sum(1 << q for q in s.data_qubits)
+        for s in graph.stabilizers
+        if s.check_type is CheckType.Z
+    ]
+
+    # Full CSS stabilizer rank must preserve X/Z Pauli type. Simply stacking
+    # X- and Z-incidence masks in the same n-bit space would undercount rank.
+    css_rows = x_rows + [mask << n for mask in z_rows]
+    css_rank = compute_rank_gf2(css_rows, 2 * n)
+    x_rank = compute_rank_gf2(x_rows, n)
+    z_rank = compute_rank_gf2(z_rows, n)
+
+    return {
+        "d": graph.d,
+        "n_data": graph.n_data,
+        "expected_n_data": expected_n_data,
+        "n_checks": graph.n_checks,
+        "expected_n_checks": expected_n_checks,
+        "n_x_checks": len(x_rows),
+        "n_z_checks": len(z_rows),
+        "x_incidence_rank": x_rank,
+        "z_incidence_rank": z_rank,
+        "css_stabilizer_rank": css_rank,
+        "expected_css_rank": expected_n_checks,
+        "achievable_syndromes": 2 ** (x_rank + z_rank),
+        "logZ_weight": popcount(graph.logZ_mask),
+        "defect_graph_populated": bool(graph.defect_graph),
+        "pass": (
+            graph.n_data == expected_n_data
+            and graph.n_checks == expected_n_checks
+            and x_rank == len(x_rows)
+            and z_rank == len(z_rows)
+            and css_rank == expected_n_checks
+            and len(graph.logZ_set) == popcount(graph.logZ_mask)
+        ),
+    }
+
+
 def decode(syndrome: int, graph: DecodingGraph) -> DecodeResult:
     """Decode a syndrome using MWPM (not implemented in this baseline stage)."""
     if syndrome < 0 or syndrome >= (1 << graph.n_checks):
@@ -155,14 +227,7 @@ def decode_with_diagnostics(syndrome: int, graph: DecodingGraph) -> DecodeResult
 
 
 def validate_graph(graph: DecodingGraph) -> Dict[str, object]:
-    return {
-        "n_data": graph.n_data,
-        "n_checks": graph.n_checks,
-        "expected_n_data": graph.d ** 2 + (graph.d - 1) ** 2,
-        "expected_n_checks": 2 * graph.d * (graph.d - 1),
-        "logZ_weight": popcount(graph.logZ_mask),
-        "defect_graph_populated": bool(graph.defect_graph),
-    }
+    return audit_geometry(graph)
 
 
 def verify_correction(
