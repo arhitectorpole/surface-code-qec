@@ -1,0 +1,23 @@
+{
+  "stage": "S0/v2 geometry audit",
+  "date": "2026-09-05",
+  "d": 3,
+  "n_data": 13,
+  "n_x_checks": 6,
+  "n_z_checks": 6,
+  "n_checks": 12,
+  "x_incidence_rank": 6,
+  "z_incidence_rank": 6,
+  "css_stabilizer_rank": 12,
+  "expected_css_rank": 12,
+  "achievable_syndromes": 4096,
+  "logZ_path_weight": 3,
+  "decoder_graph_stage": "geometry shell only",
+  "mwpm_implemented": false,
+  "status": "PASS",
+  "notes": [
+    "Rank is evaluated with X/Z Pauli type preserved.",
+    "A naive rank of all 12 support masks in one 13-bit space is not the stabilizer rank and undercounts it.",
+    "Boundary adjacency and physical boundary distances are intentionally not populated at this stage."
+  ]
+}
