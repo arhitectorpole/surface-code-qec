@@ -1,10 +1,5 @@
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from src.s0_geometry import build_unrotated_planar_surface_code
-from src.decoder_lib_v2 import build_decoding_graph
+from src.decoder_lib_v2 import build_decoding_graph, audit_geometry
 
 
 def gf2_rank(rows, ncols):
@@ -32,43 +27,60 @@ def test_d3_geometry_counts():
 def test_d3_check_weights():
     code = build_unrotated_planar_surface_code(3)
     weights = [len(qs) for _, qs in code["z_checks"] + code["x_checks"]]
-    assert sorted(weights) == [3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4]
+    assert sorted(weights) == [3] * 8 + [4] * 4
 
 
 def test_d3_full_css_stabilizer_rank_is_12():
     code = build_unrotated_planar_surface_code(3)
     n = len(code["data"])
-    rows = []
-
-    # X stabilizers occupy the X half of the CSS Pauli vector;
-    # Z stabilizers occupy the Z half. This preserves Pauli type.
-    for _, qs in code["x_checks"]:
-        rows.append(sum(1 << q for q in qs))
-    for _, qs in code["z_checks"]:
-        rows.append(sum(1 << (n + q) for q in qs))
-
+    rows = [sum(1 << q for q in qs) for _, qs in code["x_checks"]]
+    rows += [sum(1 << (n + q) for q in qs) for _, qs in code["z_checks"]]
     assert gf2_rank(rows, 2 * n) == 12
 
 
 def test_d3_syndrome_ranks_and_space():
     code = build_unrotated_planar_surface_code(3)
     n = len(code["data"])
-    z_incidence = [sum(1 << q for q in qs) for _, qs in code["z_checks"]]
-    x_incidence = [sum(1 << q for q in qs) for _, qs in code["x_checks"]]
-
-    # X data errors are detected by Z checks; Z data errors by X checks.
-    assert gf2_rank(z_incidence, n) == 6
-    assert gf2_rank(x_incidence, n) == 6
+    z_rows = [sum(1 << q for q in qs) for _, qs in code["z_checks"]]
+    x_rows = [sum(1 << q for q in qs) for _, qs in code["x_checks"]]
+    assert gf2_rank(z_rows, n) == 6
+    assert gf2_rank(x_rows, n) == 6
     assert 2 ** (6 + 6) == 4096
 
 
-def test_decoder_graph_matches_s0_counts():
+def test_d3_boundary_types_and_physical_weights():
     graph = build_decoding_graph(3)
-    assert graph.n_data == 13
-    assert graph.n_checks == 12
-    assert len(graph.stabilizers) == 12
-    assert graph.logZ_mask.bit_count() == 3
-    assert graph.defect_graph == {}
+    assert set(graph.boundary_nodes) == {"top_Z", "bottom_Z", "left_X", "right_X"}
+    assert graph.boundary_nodes["top_Z"].boundary_type == "Z"
+    assert graph.boundary_nodes["bottom_Z"].boundary_type == "Z"
+    assert graph.boundary_nodes["left_X"].boundary_type == "X"
+    assert graph.boundary_nodes["right_X"].boundary_type == "X"
+
+    max_coord = 4
+    for stab in graph.stabilizers:
+        cid = stab.check_id
+        i, j = stab.position
+        if stab.check_type.value == "Z":
+            assert graph.boundary_nodes["top_Z"].weight_to_boundary[cid] == i // 2 + 1
+            assert graph.boundary_nodes["bottom_Z"].weight_to_boundary[cid] == (max_coord - i) // 2 + 1
+        else:
+            assert graph.boundary_nodes["left_X"].weight_to_boundary[cid] == j // 2 + 1
+            assert graph.boundary_nodes["right_X"].weight_to_boundary[cid] == (max_coord - j) // 2 + 1
+
+
+def test_d3_boundary_weights_are_positive():
+    graph = build_decoding_graph(3)
+    for node in graph.boundary_nodes.values():
+        assert node.weight_to_boundary
+        assert min(node.weight_to_boundary.values()) == 1
+
+
+def test_d3_audit_passes():
+    report = audit_geometry(build_decoding_graph(3))
+    assert report["pass"] is True
+    assert report["css_stabilizer_rank"] == 12
+    assert report["achievable_syndromes"] == 4096
+    assert report["boundary_physical_weights_populated"] is True
 
 
 def test_logz_path_is_left_edge_of_canonical_frame():
