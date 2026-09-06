@@ -3,8 +3,8 @@
 ## Current validation frontier
 
 **Date:** 2026-09-07  
-**Branch:** `main`  
-**Current frontier:** Pre-implementation Graph Contract hypothesis informed by Level 4A-v4 and Level 4B-v2
+**Branch:** `experiment/level4c-contract-v1`  
+**Current frontier:** Level 4C d=3 graph-contract validation — PASS on sector-local syndrome spaces
 
 This document records the methodological state of the new `decoder_lib_v2` baseline. The v2 implementation is explicitly a new baseline, not a reconstruction of the unavailable S1 decoder.
 
@@ -99,7 +99,7 @@ For each pair `(c1, c2)` it records:
 
 ### Established pair facts
 
-For reported d=3 weight-1 pair cases, the single-qubit minimum representative coincides with a shared data qubit in the incidence intersection `Q(c1) ∩ Q(c2)`.
+For d=3 weight-1 pair cases, the single-qubit minimum representative coincides with a shared data qubit in the incidence intersection `Q(c1) ∩ Q(c2)`.
 
 This establishes a physical primitive transition candidate:
 
@@ -107,59 +107,59 @@ This establishes a physical primitive transition candidate:
 
 with physical representative weight 1.
 
-However, this does **not** yet prove that the future decoding graph must encode that physical primitive as one direct check-to-check graph edge.
+However, this does **not** by itself prove that the future decoding graph must encode that physical primitive as one direct check-to-check graph edge. The direct-edge representation is a graph hypothesis tested below.
 
-For pair syndromes with larger physical minima, the oracle provides the target physical cost and representative provenance, but graph distance and graph path structure remain unproven.
+For pair syndromes with larger physical minima, the oracle provides the target physical cost and representative provenance, but graph distance and graph path structure were initially unproven.
 
 ## Pre-implementation Graph Contract hypothesis
 
-The following is a **hypothesis to be tested**, not an implementation specification yet.
+`GRAPH_CONTRACT.md` v1.1 defines the candidate graph construction and an explicit d=3 validation scope. The contract remains a reference specification; production code is not changed by the validation.
 
-### H1 — Physical primitive for shared-qubit pairs
+## Level 4C — independent graph-contract validation
 
-If two checks in the same CSS sector share a data qubit `q`, and a single-qubit error on `q` produces exactly the two-check syndrome `{c1, c2}`, then `(c1, q, c2)` is a validated physical primitive of weight 1.
+`tests/test_level4c_graph_contract_d3.py` implements the candidate graph independently from `src/decoder_lib_v2.py` and evaluates it against a fresh exhaustive physical oracle derived from S0 incidence.
 
-Candidate graph consequence:
+The validator:
 
-- the eventual decoding graph should be capable of representing this primitive with total graph cost 1;
-- provenance back to the physical qubit `q` must be retained.
+- enumerates all `2^13 = 8192` physical masks separately for each CSS sector to obtain the exact physical minimum `w_min`;
+- treats the syndrome domain as 64 sector-local syndromes per sector, 128 cases total;
+- constructs only the candidate edges described by `GRAPH_CONTRACT.md`;
+- enumerates all defect matchings and all shortest-path choices for those matchings;
+- XORs physical edge masks to form candidate recoveries;
+- verifies candidate syndromes independently;
+- selects by physical Hamming weight only;
+- performs no pruning based on graph cost;
+- deduplicates only identical final physical masks, which does not remove any distinct physical support.
 
-Unproven:
+### Result
 
-- whether the representation must be one direct edge or a different graph construction with the same physical semantics.
+Captured execution artifact:
 
-### H2 — Physical endpoint primitive for singleton syndromes
+`audit/artifacts/level4c_graph_contract_d3.stdout`
 
-If a minimum singleton representative terminates at a concrete data qubit `q` with `deg_sector(q) == 1`, then `(c, q)` is a validated physical endpoint primitive.
+Result:
 
-Known metadata include the coordinate and physical sides containing `q`.
+- Z sector: 64/64 cases matched the physical oracle; 0 failures.
+- X sector: 64/64 cases matched the physical oracle; 0 failures.
+- Total: 128/128 sector-local syndrome cases; `TOTAL_FAILURES=0`; `RESULT: PASS`.
 
-Candidate graph consequence:
+This is a **PASS for extensional equivalence at d=3 on the tested sector-local syndrome spaces**.
 
-- the eventual decoding graph must be capable of representing a termination whose recovered physical correction includes the validated endpoint provenance;
-- the graph cost assigned to that termination must be validated against the independent physical oracle.
+### What the PASS establishes
 
-Still unproven:
+For this d=3 reference implementation, the candidate graph construction generates at least one syndrome-correct physical mask for every sector-local syndrome, and the minimum physical weight among generated valid masks equals the independently enumerated physical oracle minimum.
 
-- which topological boundary component `q` belongs to for decoding purposes;
-- how a topological boundary component maps to a virtual graph boundary node;
-- whether a corner endpoint corresponds to one or more virtual graph choices;
-- whether `coordinate_distance/2 + 1` is exact once the correct boundary semantic has been identified.
+This validates the candidate graph construction as a search representation of the physical decoding problem on the tested d=3 spaces.
 
-### H3 — Physical metric preservation
+### What the PASS does not establish
 
-For every validated graph connection or graph path eventually introduced, the implementation must preserve both:
+The PASS does not by itself prove a unique physical interpretation of every boundary component. In particular, the semantic statement
 
-1. **syndrome semantics** — recovered physical correction reproduces the intended sector syndrome;
-2. **physical metric** — recovered correction has the physical weight predicted by the independent oracle for the tested d=3 case.
+`physical endpoint -> topological boundary component -> graph boundary node`
 
-Graph cost alone is not accepted as a substitute for physical correction weight.
+remains an interpretation hypothesis even though the tested graph construction is extensionally correct for d=3.
 
-### H4 — Provenance is part of the contract
-
-Every primitive graph connection that participates in physical recovery must retain enough provenance to reconstruct the contributing data-qubit correction.
-
-A graph edge or path without physical recovery provenance is insufficient for Level 4C validation.
+It also does not establish correctness for d>3, nor does it establish MWPM correctness.
 
 ## Current known / unknown state
 
@@ -171,44 +171,32 @@ A graph edge or path without physical recovery provenance is insufficient for Le
 - A minimum singleton representative can be inspected through its actual incidence endpoint.
 - Pair physical minima can be obtained independently by exhaustive enumeration.
 - Weight-1 pair representatives can be checked directly against shared-qubit incidence provenance.
-- Syndrome reproduction can be checked independently of the decoder backend.
+- The candidate Graph Contract construction passes independent Level 4C validation on all 128 d=3 sector-local syndrome cases.
+- Syndrome reproduction can be checked independently of the production decoder backend.
 
 ### Not established
 
-- The correct semantic mapping from a physical incidence endpoint to a topological boundary component.
-- The mapping from a topological boundary component to a virtual graph boundary node.
-- Whether the current `coordinate_distance/2 + 1` formula is exact for every physically valid boundary termination.
-- Whether each shared-qubit physical primitive should be encoded as one direct check-to-check graph edge.
-- Exact graph distances for pair syndromes with physical minimum weight >= 2.
-- Path recovery from the eventual graph back to a physical correction.
-- MWPM correctness.
+- A unique ontological mapping from a physical incidence endpoint to a topological boundary component.
+- A unique interpretation of a corner as one or more virtual graph boundary choices beyond the extensional graph behavior observed at d=3.
+- Whether the same candidate construction remains correct for d>3 without further validation.
+- MWPM correctness and whether an MWPM implementation can recover the exact physical optimum without additional path-state handling.
 
 ## Change-control rule
 
-Do **not** patch `build_decoding_graph()` merely to fit Level 4A-v4 or Level 4B-v2 observations.
+Do **not** patch `build_decoding_graph()` merely to fit Level 4A-v4, Level 4B-v2, or Level 4C observations.
 
-Do **not** populate `defect_graph` until the physical boundary semantic and pair representation contracts have been explicitly tested.
+Do **not** populate `defect_graph` in production until the validated graph construction is deliberately transferred after review of the 4C evidence.
 
 Do **not** equate coordinate-side metadata with graph-boundary identity.
 
 Do **not** use MWPM results to define or validate the physical oracle.
 
-`src/decoder_lib_v2.py` and `src/s0_geometry.py` remain frozen during this pre-contract validation stage.
-
-## Next experiments
-
-1. Preserve the Level 4A-v4 endpoint catalogue as an audit artifact.
-2. Preserve the Level 4B-v2 pair catalogue and its shared-qubit provenance as an audit artifact.
-3. Formulate and test a boundary-semantic hypothesis mapping physical endpoints to topological boundary components without using the production decoder as the oracle.
-4. Formulate the pair graph-representation hypothesis and verify that it can reproduce all d=3 pair physical minima with physical provenance.
-5. Only then construct a candidate `defect_graph`.
-6. Run Level 4C: graph path -> physical correction, checking syndrome reproduction, physical weight, and provenance.
-7. Only after these layers pass, implement the MWPM backend.
+`src/decoder_lib_v2.py` and `src/s0_geometry.py` remain frozen during this experimental validation branch.
 
 ## Traceability
 
-The Level 4A-v3 test was added as a standalone historical validation artifact. Level 4A-v4 and Level 4B-v2 refine the evidence boundary: they catalogue physical facts while deliberately leaving graph semantics unproven.
+The physical catalogue scripts and captured stdout are versioned under `tests/` and `audit/artifacts/` in this branch. The Graph Contract is versioned as `GRAPH_CONTRACT.md`.
 
-Production decoder code remains unchanged by these audit steps.
+The production decoder source is unchanged by this work.
 
-Git history should preserve the physical catalogues, this Graph Contract hypothesis, and any later production implementation changes as separate evidence layers.
+Git history preserves the audit evidence and experimental validator separately from any future production implementation.
