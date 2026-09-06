@@ -1,0 +1,23 @@
+LEVEL 4D MWPM-ADMISSIBILITY ATTACK
+production_decoder_imported=False
+oracle=exhaustive_2^13_physical_masks_per_CSS_sector
+matching=exhaustive_exact_minimum_cost_with_all_ties
+
+SECTOR Z: graph_edges=17
+Z mode=graph: cost-minimal-constituent-paths=57 cases=64 failures=0 tie_physical_weight_variation_cases=0
+Z mode=physical: cost-minimal-constituent-paths=79 cases=64 failures=0 tie_physical_weight_variation_cases=0
+
+SECTOR X: graph_edges=17
+X mode=graph: cost-minimal-constituent-paths=57 cases=64 failures=0 tie_physical_weight_variation_cases=0
+X mode=physical: cost-minimal-constituent-paths=79 cases=64 failures=0 tie_physical_weight_variation_cases=0
+
+DETAILED SUMMARY
+Z mode=graph: cases=64 path_catalog_entries=57 cost_range=0..3 mismatches=0 invalid_min_cost_witnesses=0 tie_physical_variation=0
+Z mode=physical: cases=64 path_catalog_entries=79 cost_range=0..3 mismatches=0 invalid_min_cost_witnesses=0 tie_physical_variation=0
+X mode=graph: cases=64 path_catalog_entries=57 cost_range=0..3 mismatches=0 invalid_min_cost_witnesses=0 tie_physical_variation=0
+X mode=physical: cases=64 path_catalog_entries=79 cost_range=0..3 mismatches=0 invalid_min_cost_witnesses=0 tie_physical_variation=0
+
+TOTAL_MODE_CASES=256
+TOTAL_FAILURES=0
+RESULT: PASS
+INTERPRETATION: On d=3, every exact minimum-cost matching witness under both tested constituent cost models is syndrome-correct and has physical weight equal to the independent exhaustive oracle minimum.
