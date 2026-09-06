@@ -24,9 +24,12 @@ def validate_sector(code, sector):
             syndrome, len(check_masks), catalog
         )
         valid = {}
+        provenance_complete = True
         for mask, provenance in candidates.items():
             if syndrome_of_mask(mask, check_masks) == syndrome:
                 valid[mask] = provenance
+                if syndrome != 0 and not provenance:
+                    provenance_complete = False
         found_weight = min((popcount(mask) for mask in valid), default=None)
         record = {
             "sector": sector,
@@ -34,9 +37,10 @@ def validate_sector(code, sector):
             "oracle_weight": oracle_best[syndrome],
             "found_weight": found_weight,
             "valid_masks": len(valid),
+            "provenance_complete": provenance_complete,
         }
         records.append(record)
-        if found_weight != oracle_best[syndrome]:
+        if found_weight != oracle_best[syndrome] or not provenance_complete:
             failures.append(record)
     return edges, catalog, records, failures
 
@@ -61,7 +65,8 @@ def main():
         for record in records:
             print(
                 "{sector} syn={syndrome} oracle={oracle_weight} "
-                "found={found_weight} valid_masks={valid_masks}".format(**record)
+                "found={found_weight} valid_masks={valid_masks} "
+                "provenance_complete={provenance_complete}".format(**record)
             )
     print(f"TOTAL_CASES={total_cases}")
     print(f"TOTAL_FAILURES={len(all_failures)}")
