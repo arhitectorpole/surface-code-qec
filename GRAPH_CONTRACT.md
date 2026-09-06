@@ -2,11 +2,11 @@
 
 ## 0. Status and Scope
 
-- **Status:** *Experimental specification* – validated extensionally for the tested d=3 sector-local spaces by Level 4C; not yet promoted to production semantics.
-- **Revision note:** v1.2 records the provenance boundary discovered during implementation: the historical Level 4A-v4 and Level 4B-v2 source files are not present on the current `main` tree, so reconstructed scripts are not treated as historical evidence. The candidate graph semantics and 4C result are independently versioned below.
-- **Scope:** d=3 surface code (planar, unrotated), CSS stabilizer formalism.
-- **Relation to production:** This document defines a candidate graph construction validated independently by Level 4C. **It does not modify** `src/decoder_lib_v2.py` or `src/s0_geometry.py`. Production code remains frozen pending review and deliberate transfer.
-- **Epistemic layers:** Each section clearly distinguishes PROVEN facts, HYPOTHESES, and UNPROVEN claims.
+- **Status:** *Experimental specification* — validated extensionally for the tested d=3 sector-local spaces by Level 4C and attacked for shortest-path completeness by Level 4C-A; not promoted to production.
+- **Revision:** v1.3. Corrects the former tautological H4 formulation, records the 4C-A completeness attack, and makes the oracle-independence wording explicit.
+- **Scope:** d=3 unrotated planar surface code, CSS stabilizer formalism.
+- **Production relation:** This document defines a candidate reference graph. It does not modify `src/decoder_lib_v2.py` or `src/s0_geometry.py`.
+- **Epistemic rule:** Physical facts, graph hypotheses, and validation results are kept distinct.
 
 ---
 
@@ -14,216 +14,234 @@
 
 ### 1.1 Data Qubits
 
-Let `D` be the set of data qubits in the unrotated planar surface code of distance `d=3`.
-From S0 geometry:
-
-```text
-|D| = 13
-```
-
-Each data qubit has coordinates `(x, y)` with `x, y ∈ {0, 2, 4}` (step 2).
+For d=3, the canonical S0 geometry contains 13 data qubits with coordinates on the `{0,2,4}` lattice.
 
 ### 1.2 Check Nodes
 
-There are two CSS sectors: **Z-stabilizers** and **X-stabilizers**.
-For d=3, the S0 geometry contains 6 checks per sector and 12 stabilizers total.
-
-We denote local check nodes as `c_i`, `i=0..5`, within each sector.
+There are 6 Z checks and 6 X checks. Graph checks are indexed locally as `c_0 ... c_5` within each sector.
 
 ### 1.3 Sector Incidence
 
-For each check `c` and sector `S ∈ {Z, X}`, the support `Q_S(c)` is the set of data qubits incident to that stabilizer (from S0 geometry).
-Incidence degree of a data qubit `q` with respect to sector `S`:
+For a sector `S`, `Q_S(c)` is the set of data qubits incident on check `c`.
 
 ```text
-deg_S(q) = |{ c ∈ S : q ∈ Q_S(c) }|
+deg_S(q) = |{ c in S : q in Q_S(c) }|
 ```
 
 ### 1.4 Boundary Nodes
 
-We define four topological boundary components for the square lattice:
+The candidate graph contains four abstract boundary nodes:
 
-- `B_T` (top)
-- `B_B` (bottom)
-- `B_L` (left)
-- `B_R` (right)
+- `B_T` — top
+- `B_B` — bottom
+- `B_L` — left
+- `B_R` — right
 
-These are abstract graph nodes, not physical qubits. There are **no separate corner nodes**; corners are represented by adjacency to two boundary nodes.
+They are graph objects, not physical qubits. No separate corner nodes are used.
 
 ---
 
-## 2. Proven Physical Primitives
+## 2. Prior Physical Evidence
 
-### 2.1 Singleton Endpoint Invariant
+### 2.1 Singleton Endpoint Evidence
 
-The prior Level 4A evidence established, for d=3 single-check syndromes, that minimum physical representatives are single-qubit errors with an incidence endpoint satisfying `deg_S(q) == 1`, and that a corner remains one physical endpoint even when its coordinate touches two sides.
+Prior Level 4A evidence established for d=3 that minimum singleton representatives are single-qubit physical errors with an incidence endpoint satisfying `deg_S(q) == 1`. A corner remains one physical endpoint even when its coordinate touches two geometric sides.
 
-**Provenance status:** The original historical Level 4A-v4 source/output are referenced by prior audit notes but are not present in the current `main` tree. This document therefore does not claim that those historical artifacts are independently reproducible from `main` in their original form.
+The original Level 4A-v4 source/output are not present on the current `main` tree. They are therefore treated as prior conversation/audit evidence rather than as a currently reproducible Git artifact.
 
-### 2.2 Shared-Qubit Pair Primitive
+### 2.2 Shared-Qubit Pair Evidence
 
-The prior Level 4B evidence established, for d=3 weight-1 pair cases, that the single-qubit minimum representative coincides with a shared data qubit in `Q(c_i) ∩ Q(c_j)`.
+Prior Level 4B evidence established for d=3 that weight-1 pair representatives coincide with a shared qubit in `Q(c_i) ∩ Q(c_j)`.
 
-For the S0 d=3 geometry used here, same-sector pair intersections are at most singleton. If the intersection is empty, no single-qubit error can flip exactly both checks, so `w_min ≥ 2`.
-
-**Provenance status:** The original historical Level 4B-v2 source/output are referenced by prior audit notes but are not present in the current `main` tree. This document does not treat any reconstructed replacement as historical evidence.
+The original Level 4B-v2 source/output are not present on the current `main` tree. Reconstructed substitutes are not treated as historical evidence.
 
 ---
 
 ## 3. Candidate Graph Construction
 
-This section defines a **candidate** graph `G_S = (V, E)` for each sector `S ∈ {Z, X}`.
-
 ### 3.1 Check–Check Edges
 
-For every pair of check nodes `(c_i, c_j)` in the same sector:
+For each same-sector pair `(c_i,c_j)`, if `Q(c_i) ∩ Q(c_j) = {q}`, add an undirected edge:
 
-- If `Q(c_i) ∩ Q(c_j) = {q}` (single shared qubit), then add an undirected edge `e = (c_i, c_j)` with:
-  - **weight** = 1 (graph cost)
-  - **physical mask** = `{q}`
-  - **provenance** = the shared qubit `q`
+```text
+(c_i, c_j), graph_weight=1, physical_mask={q}
+```
 
-No other check–check edges are added.
+with provenance identifying the shared physical qubit `q`.
+
+No other direct check–check edges are added by this candidate construction.
 
 ### 3.2 Check–Boundary Edges
 
-For each check node `c` and each data qubit `q ∈ Q(c)`:
+For each check `c` and each `q in Q(c)` with `deg_S(q) == 1`, inspect the coordinate sides of `q`.
 
-- **If** `deg_S(q) == 1`, determine the physical sides of `q` from its coordinates:
-  - `x == 0` → side `L`
-  - `x == 2d-2` → side `R`
-  - `y == 0` → side `T`
-  - `y == 2d-2` → side `B`
-- For **each** touched side `b`, add an undirected edge `e = (c, B_b)` with:
-  - **weight** = 1
-  - **physical mask** = `{q}`
-  - **provenance** = endpoint qubit `q` and side `b`
+For every touched side `b`, add:
 
-Thus, a corner qubit generates two boundary edges with the same physical mask `{q}`.
+```text
+(c, B_b), graph_weight=1, physical_mask={q}
+```
 
-The mapping from physical side metadata to topological boundary semantics remains an interpretation question even though the candidate construction has passed the d=3 extensional test below.
+with provenance identifying `c`, `q`, and `b`.
 
-### 3.3 Edge Provenance
+A corner can therefore produce two graph boundary edges carrying the same physical mask. This is an extensional graph construction hypothesis, not a claim that a corner is ontologically two independent physical terminations.
 
-Every edge must be annotated with:
+### 3.3 Provenance
 
-- its physical mask;
-- the physical primitive that justifies its existence;
-- the S0 incidence source/version.
+Every graph edge used by the reference validator must retain enough information to reconstruct its physical mask and its originating S0 incidence primitive.
 
 ---
 
-## 4. Path Semantics
+## 4. Path and Recovery Semantics
 
-### 4.1 Physical Mask of a Path
+### 4.1 Physical Mask
 
-For a path `P`, `M(P)` is the XOR (symmetric difference) of the physical masks of all traversed edges.
+For a graph path `P`, the recovered physical mask `M(P)` is the XOR of all edge physical masks traversed by the path.
 
-### 4.2 Syndrome of a Path
+### 4.2 Syndrome
 
-For sector check `c`, `syn_c = parity(M(P) ∩ Q(c))`.
-A candidate is retained only if its recovered physical mask reproduces the target syndrome.
+For each sector check `c`:
+
+```text
+syn_c(M) = parity(M intersect Q(c))
+```
+
+A recovered candidate is valid only when its physical mask reproduces the target sector syndrome.
 
 ### 4.3 Graph Weight
 
-The graph weight is the sum of edge weights. In this candidate graph all primitive edges have weight 1.
+All primitive edges in the candidate d=3 graph have graph weight 1.
 
 ### 4.4 Physical Weight
 
-The physical weight is `|M(P)|` (Hamming weight of the recovered physical mask).
+The physical objective is the Hamming weight `|M|` of the recovered physical mask.
 
-**Critical rule:** Graph weight is not an admissible proxy for physical weight in the optimality decision.
+**Critical rule:** graph weight is not an admissible proxy for physical weight and is never used as an optimality proof or pruning bound in the reference validation.
 
----
+### 4.5 Candidate Search
 
-## 5. Candidate Decoding Semantics
+For a sector-local defect syndrome:
 
-Given a sector-local defect syndrome `S_def`:
+1. Pair defects with one another or terminate them at boundary nodes, using every defect exactly once.
+2. For each connection, enumerate the permitted constituent graph paths.
+3. XOR constituent physical masks.
+4. Verify the resulting syndrome.
+5. Minimize physical Hamming weight over valid masks.
 
-1. Pair defects with one another or terminate them at boundary nodes, using each defect exactly once.
-2. For each pair/boundary connection, enumerate all shortest graph paths.
-3. XOR all path physical masks.
-4. Verify syndrome reproduction.
-5. Minimize physical Hamming weight over valid recovered masks.
-
-The search may deduplicate identical final physical masks, because identical masks are physically equivalent; this is not graph-cost pruning.
+Level 4C uses all shortest constituent paths. Level 4C-A additionally compares this space against all simple constituent paths in the same candidate graph.
 
 ---
 
-## 6. Explicit Hypotheses (H1–H4)
+## 5. Explicit Hypotheses
 
-| ID | Hypothesis | Status after Level 4C |
-|----|------------|-----------------------|
-| H1 | Check–check edges are sufficient to represent all tested d=3 pair-type minima through concatenation. | **SUPPORTED FOR d=3 EXTENSIONAL TEST** |
-| H2 | Check–boundary edges are sufficient to represent all tested d=3 singleton and multi-defect minima, including corner cases. | **SUPPORTED FOR d=3 EXTENSIONAL TEST** |
-| H3 | The search procedure produces the oracle-optimal physical weight for every tested d=3 sector-local syndrome. | **PASS** |
-| H4 | No generated syndrome-correct candidate has physical weight below the independent oracle minimum. | **PASS** |
+| ID | Hypothesis | Current status |
+|---|---|---|
+| H1 | Candidate check–check edges are sufficient to represent all d=3 physical minima through concatenation. | **SUPPORTED FOR TESTED d=3 DOMAIN** |
+| H2 | Candidate check–boundary edges, including corner duplication, are sufficient to represent all d=3 physical minima. | **SUPPORTED FOR TESTED d=3 DOMAIN** |
+| H3 | Exhaustive matching plus all shortest constituent paths reproduces the exact physical minimum for every d=3 sector-local syndrome. | **PASS** |
+| H4 | Restricting each constituent connection to shortest graph paths loses no d=3 oracle-minimum physical mask. | **PASS / 4C-A** |
 
-These statuses are restricted to the Level 4C d=3 test domain. They are not general proofs for larger distance or for a future MWPM implementation.
+These statuses are empirical statements about the tested d=3 reference construction. They are not general theorems for larger distance.
+
+**Note on the former H4:** The earlier statement “no generated candidate can be lighter than the oracle minimum” was tautological because `w_min` is defined by exhaustive physical minimization. It is therefore not treated as an independent hypothesis or acceptance gate.
 
 ---
 
-## 7. Non-Claims
+## 6. Level 4C Acceptance
+
+The Level 4C acceptance test covers all sector-local syndromes:
+
+- 64 Z-sector syndromes;
+- 64 X-sector syndromes;
+- 128 cases total.
+
+The physical oracle independently enumerates all `2^13 = 8192` physical masks per sector and returns the exact `w_min` for each syndrome.
+
+The Level 4C graph search passes when every tested syndrome has at least one syndrome-correct generated mask and the minimum physical weight among generated valid masks equals the oracle minimum.
+
+The oracle is independent of the production decoder and of its graph semantics. It intentionally shares the canonical S0 incidence source with the reference graph constructor.
+
+### Level 4C result
+
+The versioned execution artifact reports:
+
+```text
+Z: 64/64, failures=0
+X: 64/64, failures=0
+TOTAL_CASES=128
+TOTAL_FAILURES=0
+RESULT: PASS
+```
+
+This establishes **extensional equivalence for the tested d=3 sector-local syndrome spaces under the shortest-path search semantics**.
+
+It does not establish d>3 correctness, production-transfer correctness, or MWPM correctness.
+
+---
+
+## 7. Level 4C-A Shortest-Path Completeness Attack
+
+The shortest-path restriction is itself attacked by exhaustive enumeration of **all simple paths** between every check-check and check-boundary connection in the same candidate graph.
+
+Because a simple path cannot repeat a node, the maximum simple-path length is exactly `|V|-1`; no heuristic path-length cutoff is used.
+
+For d=3, each sector candidate graph has 10 nodes and 17 edges.
+
+| Sector | shortest constituent paths | all simple constituent paths | oracle minima missing from G_short | oracle minima missing from G_all | additional valid masks in G_all \\ G_short |
+|---|---:|---:|---:|---:|---:|
+| Z | 57 | 1889 | 0 | 0 | 5300 |
+| X | 57 | 1889 | 0 | 0 | 5300 |
+
+The attack therefore finds **no oracle-minimum mask outside the shortest-path-generated search space** for d=3.
+
+At the same time, all-simple-path enumeration adds many other syndrome-correct physical masks. Thus the shortest-path restriction is a genuine reduction of the search space, not a vacuous reformulation.
+
+**Disposition:** H4 is supported for d=3 only.
+
+---
+
+## 8. Non-Claims
 
 - Graph cost equals physical Hamming weight.
-- Physical side membership alone uniquely determines decoding-boundary semantics.
-- The construction is proven for `d>3`.
-- A MWPM solver has been validated by this contract.
-- The exact historical Level 4A-v4 / Level 4B-v2 scripts are present in the current repository tree.
-
----
-
-## 8. Level 4C Acceptance Criteria
-
-Level 4C is **passed for d=3 sector-local decoding** when:
-
-1. Every one of the 64 Z-sector syndromes and every one of the 64 X-sector syndromes yields at least one valid recovered physical mask.
-2. The minimum physical weight among generated valid masks equals the independent physical oracle minimum obtained by enumerating all `2^13 = 8192` physical masks separately for each sector.
-3. Candidate recoveries retain primitive-to-qubit provenance internally.
-4. The validation implementation does not import or rely on `decoder_lib_v2.py` and does not use graph cost for physical optimality pruning.
-
-Failure of any case rejects the candidate graph contract for the tested domain.
-
-### 8.1 Syndrome-domain accounting
-
-- The physical oracle enumerates 8192 physical masks per CSS sector.
-- Each d=3 sector has 6 independent checks and therefore 64 sector-local syndromes.
-- Level 4C covers 128 syndrome cases total: 64 Z + 64 X.
+- Physical side membership uniquely determines the decoding boundary ontology.
+- Corner duplication in the candidate graph is the unique physical interpretation of a corner.
+- The candidate graph is proven for `d > 3`.
+- Shortest-path sufficiency is a theorem for arbitrary graph sizes or code distances.
+- A MWPM implementation is validated by these experiments.
+- The historical Level 4A-v4 / Level 4B-v2 source and stdout are currently present in Git.
 
 ---
 
 ## 9. Provenance and Artifacts
 
-### Canonical source
+### Canonical geometry
 
-- **S0 geometry:** `src/s0_geometry.py`, blob SHA `1e52217e7bbb56103977c68a7aaa8cbda92521af`.
+- `src/s0_geometry.py`
+- blob SHA: `1e52217e7bbb56103977c68a7aaa8cbda92521af`
 
-### Historical physical-oracle evidence
+### Historical physical evidence
 
-- Level 4A-v4 and Level 4B-v2 were reported in the audit/conversation history and are relied upon as prior physical evidence.
-- Their exact historical source files and stdout are **not currently present on the `main` tree**. This is a provenance gap, not silently repaired here.
-- `tests/test_level4a_v3_boundary_termination.py` remains versioned historical evidence for the underlying singleton endpoint invariant.
+Level 4A-v4 and Level 4B-v2 are relied upon as prior audit/conversation evidence. Their exact historical source/output are not currently present on `main`; reconstructed replacements are intentionally excluded from the historical evidence chain.
 
-### New versioned Level 4C evidence
+### Versioned experimental evidence
 
 - `tests/test_level4c_graph_contract_d3.py`
+- `tests/test_level4c_a_shortest_path_completeness_d3.py`
 - `tests/_level4_common.py`
 - `audit/artifacts/level4c_graph_contract_d3.stdout`
+- `audit/artifacts/level4c_a_shortest_path_completeness_d3.stdout`
 - `audit/artifacts/README.md`
-- `audit/artifacts/SHA256SUMS.txt`
-
-The Level 4C stdout is the reproducible, versioned record for the graph-contract PASS.
+- `audit/LEVEL4C_ADVERSARIAL_REVIEW.md`
 
 ---
 
-## 10. Relation to Production Code
+## 10. Relation to Production
 
-This contract is a reference specification for validation. The production decoder (`src/decoder_lib_v2.py`) remains frozen and is not modified by the Level 4C work.
+`src/decoder_lib_v2.py` and `src/s0_geometry.py` remain frozen on this experimental branch.
 
-A future production transfer must be a separate reviewed change, with a new validation record showing that the transferred graph construction preserves the same physical semantics and provenance.
+A future production transfer must be a separate reviewed change, followed by validation of the transferred implementation against the same independent physical oracle and provenance requirements.
 
 ---
 
-**Document version:** 1.2  
+**Document version:** 1.3  
 **Last updated:** 2026-09-07  
-**Current status:** Level 4C PASS for d=3 sector-local syndrome spaces; production implementation remains frozen.
+**Current status:** Level 4C PASS + Level 4C-A PASS for d=3 sector-local spaces; production remains frozen.
