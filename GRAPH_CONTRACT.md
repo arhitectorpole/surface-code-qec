@@ -124,7 +124,7 @@ For a sector-local defect syndrome:
 1. Pair defects with one another or terminate them at boundary nodes, using every defect exactly once.
 2. For each connection, enumerate the permitted constituent graph paths.
 3. XOR constituent physical masks.
-4. Verify the resulting syndrome.
+4. Verify the syndrome.
 5. Minimize physical Hamming weight over valid masks.
 
 Level 4C uses all shortest constituent paths. Level 4C-A additionally compares this space against all simple constituent paths in the same candidate graph.
@@ -180,7 +180,7 @@ It does not establish d>3 correctness, production-transfer correctness, or MWPM 
 
 ## 7. Level 4C-A Shortest-Path Completeness Attack
 
-The shortest-path restriction is itself attacked by exhaustive enumeration of **all simple paths** between every check-check and check-boundary connection in the same candidate graph.
+The shortest-path restriction is attacked by exhaustive enumeration of **all simple paths** between every check-check and check-boundary connection in the same candidate graph.
 
 Because a simple path cannot repeat a node, the maximum simple-path length is exactly `|V|-1`; no heuristic path-length cutoff is used.
 
@@ -191,7 +191,7 @@ For d=3, each sector candidate graph has 10 nodes and 17 edges.
 | Z | 57 | 1889 | 0 | 0 | 5300 |
 | X | 57 | 1889 | 0 | 0 | 5300 |
 
-The attack therefore finds **no oracle-minimum mask outside the shortest-path-generated search space** for d=3.
+The attack finds **no oracle-minimum mask outside the shortest-path-generated search space** for d=3.
 
 At the same time, all-simple-path enumeration adds many other syndrome-correct physical masks. Thus the shortest-path restriction is a genuine reduction of the search space, not a vacuous reformulation.
 
