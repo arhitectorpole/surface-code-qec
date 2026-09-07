@@ -5,12 +5,10 @@ changes the *content* of the d=5 CC-only shortest-path corpus, rather than merel
 changing its enumeration order.
 
 This is a diagnostic instrument only. It does not access historical Run A and
-does not claim historical provenance. It deliberately excludes all boundary
-classification and corner semantics.
-
-The probe is deliberately repeated with native, reversed, and repr-sorted
-adjacency. Because all shortest paths are enumerated exhaustively, a pure
-adjacency-order change should alter traversal order but not corpus content.
+does not claim historical provenance. It deliberately excludes boundary-edge
+paths, but CC shortest paths may still traverse a boundary node as an
+intermediate graph node; therefore endpoint-disjoint is NOT synonymous with
+motif I. Both quantities are reported explicitly.
 """
 from __future__ import annotations
 
@@ -89,12 +87,17 @@ def cc_funnel(catalog):
 
     conflicts = 0
     endpoint_disjoint = 0
+    motif_I = 0
     for a, b in overlap_pairs:
         pa, pb = paths[a], paths[b]
         if set((pa[2][0], pa[2][-1])) & set((pb[2][0], pb[2][-1])):
             conflicts += 1
-        else:
-            endpoint_disjoint += 1
+            continue
+        endpoint_disjoint += 1
+        pa_has_boundary = any(isinstance(n, tuple) and n[0] == "b" for n in pa[2])
+        pb_has_boundary = any(isinstance(n, tuple) and n[0] == "b" for n in pb[2])
+        if not pa_has_boundary and not pb_has_boundary:
+            motif_I += 1
 
     return {
         "cc_paths_total": len(paths),
@@ -104,7 +107,8 @@ def cc_funnel(catalog):
         ),
         "cc_overlap_pairs": len(overlap_pairs),
         "cc_endpoint_conflicts": conflicts,
-        "motif_I": endpoint_disjoint,
+        "cc_endpoint_disjoint_pairs": endpoint_disjoint,
+        "motif_I": motif_I,
         "cc_path_hash": stable_hash(sorted(paths, key=repr)),
     }
 
