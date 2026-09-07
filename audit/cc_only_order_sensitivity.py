@@ -7,16 +7,21 @@ changing its enumeration order.
 This is a diagnostic instrument only. It does not access historical Run A and
 does not claim historical provenance. It deliberately excludes all boundary
 classification and corner semantics.
+
+The probe is deliberately repeated with native, reversed, and repr-sorted
+adjacency. Because all shortest paths are enumerated exhaustively, a pure
+adjacency-order change should alter traversal order but not corpus content.
 """
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 from itertools import combinations
 from hashlib import sha256
 import json
 import sys
+from pathlib import Path
 
-ROOT = __import__("pathlib").Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
@@ -114,7 +119,8 @@ def run_variant(code, sector, variant):
         adj = repr_sorted_adjacency(adjacency)
     else:
         raise ValueError(variant)
-    catalog = connection_catalog(adj, len(code["z_checks"] if sector == "Z" else code["x_checks"]))
+    nchecks = len(code["z_checks"] if sector == "Z" else code["x_checks"])
+    catalog = connection_catalog(adj, nchecks)
     return cc_funnel(catalog)
 
 
