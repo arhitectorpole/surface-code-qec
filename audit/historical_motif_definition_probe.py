@@ -1,19 +1,23 @@
-"""Independent d=5 probe for the historical motif-definition hypothesis.
+"""Forensic d=5 probe for the historical motif-definition hypothesis.
 
-Hypothesis under test (not assumed true): historical motif I may have meant
-CC/CC endpoint-disjoint, rather than the current narrower condition that
-neither constituent path contains a boundary node.  The same type-based
-widening is tested across all motif families; a partial match is not treated
-as historical reconstruction.
+Diagnostic only: no oracle/decoder role and no claim of historical source recovery.
 
-This probe deliberately does NOT call classify_motif(). It independently
-reconstructs pair-family labels from catalog keys and endpoint disjointness,
-then reports both the widened counts and the current structural counts for
-comparison. It is diagnostic only and has no oracle/decoder role.
+Fixed hypothesis: historical motif classes used connection-family identity plus
+endpoint-disjointness, while boundary-boundary pairs retained the observed
+DOUBLE-exit subdivision for IIIc. The hypothesis is all-or-nothing: every
+historical class total must match simultaneously. Any mismatch means
+NOT_CONFIRMED. Even a five-row match does not prove corpus/source identity.
+
+Level 1 is a full-corpus cheap assertion. It derives boundary presence directly
+from edge metadata and checks classify_motif() against that independent boolean
+predicate. Level 2 is a deterministic boundary-focused corpus covering A/B/C
+class boundaries, including A2a/A2b CC/CC paths that traverse a boundary node.
+Exit multiplicity is independently recomputed from the full catalog rather than
+using analyze_boundary_exit_multiplicity().
 """
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import combinations
 from pathlib import Path
 import sys
@@ -21,143 +25,229 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
+sys.path.insert(0, str(ROOT / "audit"))
 
 from s0_geometry import build_unrotated_planar_surface_code
 from _level4_common import graph_construction, connection_catalog
+from provenance_reconciliation import classify_motif, analyze_boundary_exit_multiplicity, flatten_catalog
 
 HISTORICAL = {"I": 16558, "II": 4864, "IIIa": 212, "IIIb": 18, "IIIc": 382}
 
 
-def records(catalog):
-    out = []
-    for key, paths in catalog.items():
-        for mask, node_path, edge_path in paths:
-            out.append({
-                "key": key,
-                "mask": mask,
-                "node_path": tuple(node_path),
-                "endpoints": (node_path[0], node_path[-1]),
-                "edge_path": tuple(edge_path),
-            })
-    return out
+def boundary_edge_qubits(path):
+    """Independent predicate: inspect canonical edge metadata directly."""
+    return {edge[4] for edge in path.edge_signature if edge[1] == "check_boundary"}
 
 
-def has_boundary_node(p):
-    return any(isinstance(n, tuple) and n[0] == "b" for n in p["node_path"])
+def has_boundary_edge(path):
+    return bool(boundary_edge_qubits(path))
 
 
-def path_family(p):
-    return p["key"][0]
+def family(path):
+    return path.key[0]
 
 
-def boundary_side(p):
-    key = p["key"]
-    return key[2] if key[0] == "boundary" else None
+def side(path):
+    return path.key[2] if path.key[0] == "boundary" else None
 
 
-def independent_widened_label(p, q):
-    """Type-based classification independent of classify_motif()."""
-    fp, fq = path_family(p), path_family(q)
-    if fp == "pair" and fq == "pair":
-        return "I"
-    if {fp, fq} == {"pair", "boundary"}:
-        return "II"
-    if fp == "boundary" and fq == "boundary":
-        # Historical IIIa/IIIb are tested here using the explicit boundary
-        # connection identities, not by inspecting intermediate node paths.
-        # IIIc is deliberately separated later by physical double-exit data.
-        return "IIIa" if boundary_side(p) == boundary_side(q) else "IIIb"
-    raise AssertionError((fp, fq))
-
-
-def boundary_qubits(p):
-    qs = set()
-    for edge in p["edge_path"]:
-        meta = edge[3]
-        if meta.get("kind") == "check_boundary":
-            qs.add(meta.get("qubit"))
-    return qs
-
-
-def observed_double_exit_qubits(catalog):
-    # Independent of the census classifier: inspect unique physical boundary
-    # attachments directly from the graph-edge catalog.
-    attachments = {}
+def recompute_exit_multiplicity(catalog):
+    """Independent full-catalog recomputation; never calls analyze_*()."""
+    attachments = defaultdict(set)
     for key, paths in catalog.items():
         if key[0] != "boundary":
             continue
-        check, side = key[1], key[2]
+        check, boundary_side = key[1], key[2]
         for _, _, edge_path in paths:
             for edge in edge_path:
                 meta = edge[3]
                 if meta.get("kind") == "check_boundary":
-                    attachments.setdefault(meta["qubit"], set()).add((check, side))
-    return {q for q, a in attachments.items() if len(a) == 2}
+                    attachments[meta["qubit"]].add((check, boundary_side))
+    result = {}
+    for q, items in sorted(attachments.items()):
+        n = len(items)
+        result[q] = {
+            "multiplicity": "SINGLE" if n == 1 else "DOUBLE" if n == 2 else "ANOMALOUS",
+            "attachments": tuple(sorted(items)),
+        }
+    return result
 
 
-def scan(catalog):
-    ps = records(catalog)
-    by_q = {}
-    for i, p in enumerate(ps):
-        for q in range(100):
-            if p["mask"] & (1 << q):
-                by_q.setdefault(q, []).append(i)
+def independent_widened_label(p, q, exit_info):
+    """Historical hypothesis, independent of classify_motif()."""
+    fp, fq = family(p), family(q)
+    if fp == fq == "pair":
+        return "I"
+    if {fp, fq} == {"pair", "boundary"}:
+        return "II"
+    if fp == fq == "boundary":
+        if side(p) == side(q):
+            return "IIIa"
+        doubles = {qnum for qnum, info in exit_info.items()
+                   if info["multiplicity"] == "DOUBLE"}
+        return "IIIc" if (boundary_edge_qubits(p) & boundary_edge_qubits(q) & doubles) else "IIIb"
+    raise AssertionError((fp, fq))
+
+
+def collect_pairs(paths):
+    by_qubit = defaultdict(list)
+    for pid, path in enumerate(paths):
+        mask = path.mask
+        while mask:
+            bit = mask & -mask
+            by_qubit[bit.bit_length() - 1].append(pid)
+            mask ^= bit
     pairs = set()
-    for ids in by_q.values():
+    for ids in by_qubit.values():
         pairs.update(combinations(sorted(set(ids)), 2))
+    return [(a, b) for a, b in sorted(pairs)
+            if not (set(paths[a].endpoints) & set(paths[b].endpoints))]
 
-    counts = Counter()
-    widened = Counter()
-    current_structural = Counter()
-    for a, b in sorted(pairs):
-        p, q = ps[a], ps[b]
-        if set(p["endpoints"]) & set(q["endpoints"]):
+
+def level1_full_assert(paths, pairs):
+    checks = Counter()
+    for a, b in pairs:
+        p, q = paths[a], paths[b]
+        actual = classify_motif(p, q, {})
+        bp, bq = has_boundary_edge(p), has_boundary_edge(q)
+        if not bp and not bq:
+            assert actual == "I", (a, b, actual, "I")
+        elif bp != bq:
+            assert actual == "II", (a, b, actual, "II")
+        else:
+            assert actual in {"IIIa", "IIIb", "IIIc"}, (a, b, actual)
+        checks[f"actual_{actual}"] += 1
+    return checks
+
+
+def deterministic_boundary_corpus(paths, pairs, exit_info, limit_per_bucket=8):
+    doubles = {q for q, info in exit_info.items() if info["multiplicity"] == "DOUBLE"}
+    buckets = defaultdict(list)
+    for a, b in pairs:
+        p, q = paths[a], paths[b]
+        fp, fq = family(p), family(q)
+        bp, bq = has_boundary_edge(p), has_boundary_edge(q)
+        if fp == fq == "pair":
+            if not bp and not bq:
+                bucket = "A1_CC_CC_no_boundary"
+            else:
+                qset = boundary_edge_qubits(p) | boundary_edge_qubits(q)
+                bucket = "A2b_CC_CC_boundary_double_exit" if qset & doubles else "A2a_CC_CC_boundary_single_exit"
+        elif {fp, fq} == {"pair", "boundary"}:
+            bucket = "B_CC_CB"
+        elif fp == fq == "boundary":
+            if side(p) == side(q):
+                bucket = "C1_CB_CB_same_boundary"
+            elif (boundary_edge_qubits(p) & boundary_edge_qubits(q) & doubles):
+                bucket = "C3_CB_CB_different_boundary_double_exit"
+            else:
+                bucket = "C2_CB_CB_different_boundary_single_exit"
+        else:
             continue
-        label = independent_widened_label(p, q)
-        widened[label] += 1
+        if len(buckets[bucket]) < limit_per_bucket:
+            buckets[bucket].append((a, b))
+    return buckets
 
-        # Current motif-I criterion only, recomputed independently.
-        if label == "I":
-            if not has_boundary_node(p) and not has_boundary_node(q):
-                current_structural["I"] += 1
-        elif label == "II":
-            if has_boundary_node(p) != has_boundary_node(q):
-                current_structural["II"] += 1
-        elif label in ("IIIa", "IIIb"):
-            # This is only the current side/path-node structural split; IIIc
-            # is reported separately below rather than silently folding it.
-            current_structural[label] += 1
 
-    return widened, current_structural, len(pairs)
+def level2_assert(paths, buckets, exit_info):
+    checked = 0
+    production_exit_for_classifier = {
+        q: {"multiplicity": info["multiplicity"]}
+        for q, info in exit_info.items()
+    }
+    for bucket, pairs in sorted(buckets.items()):
+        assert pairs, bucket
+        for a, b in pairs:
+            p, q = paths[a], paths[b]
+            actual = classify_motif(p, q, production_exit_for_classifier)
+            widened = independent_widened_label(p, q, exit_info)
+            bp, bq = has_boundary_edge(p), has_boundary_edge(q)
+            if bucket.startswith("A1"):
+                assert not bp and not bq and actual == "I" and widened == "I"
+            elif bucket.startswith("A2"):
+                assert family(p) == family(q) == "pair" and (bp or bq)
+                assert widened == "I"
+                # This is the explicit A2-vs-II boundary: a CC/CC path that
+                # traverses a boundary remains family I under the hypothesis.
+                assert actual in {"I", "II", "IIIa", "IIIb", "IIIc"}
+            elif bucket.startswith("B"):
+                assert bp != bq and actual == "II" and widened == "II"
+            elif bucket.startswith("C1"):
+                assert bp and bq and side(p) == side(q)
+                assert actual == "IIIa" and widened == "IIIa"
+            elif bucket.startswith("C2"):
+                assert bp and bq and side(p) != side(q)
+                assert actual == "IIIb" and widened == "IIIb"
+            elif bucket.startswith("C3"):
+                assert bp and bq and side(p) != side(q)
+                assert actual == "IIIc" and widened == "IIIc"
+            else:
+                raise AssertionError(bucket)
+            checked += 1
+    return checked
 
 
 def run(d, sector):
     code = build_unrotated_planar_surface_code(d)
     adjacency, _ = graph_construction(code, sector)
-    catalog = connection_catalog(adjacency, len(code["z_checks"] if sector == "Z" else code["x_checks"]))
-    widened, current, endpoint_disjoint = scan(catalog)
+    check_count = len(code["z_checks"] if sector == "Z" else code["x_checks"])
+    catalog = connection_catalog(adjacency, check_count)
+    paths = flatten_catalog(catalog, sector)
+
+    production_exit, anomalies = analyze_boundary_exit_multiplicity(catalog)
+    independent_exit = recompute_exit_multiplicity(catalog)
+    assert not anomalies, anomalies
+    assert production_exit == independent_exit, ("exit multiplicity mismatch", production_exit, independent_exit)
+
+    pairs = collect_pairs(paths)
+    level1 = level1_full_assert(paths, pairs)
+    buckets = deterministic_boundary_corpus(paths, pairs, independent_exit)
+    level2_cases = level2_assert(paths, buckets, independent_exit)
+
+    widened = Counter()
+    current = Counter()
+    for a, b in pairs:
+        p, q = paths[a], paths[b]
+        widened[independent_widened_label(p, q, independent_exit)] += 1
+        current[classify_motif(p, q, production_exit)] += 1
+
+    all_five_match = all(widened[k] == HISTORICAL[k] for k in HISTORICAL)
+    doubles = {q for q, info in independent_exit.items() if info["multiplicity"] == "DOUBLE"}
+    a2a = a2b = 0
+    for a, b in pairs:
+        p, q = paths[a], paths[b]
+        if family(p) == family(q) == "pair" and (has_boundary_edge(p) or has_boundary_edge(q)):
+            if (boundary_edge_qubits(p) | boundary_edge_qubits(q)) & doubles:
+                a2b += 1
+            else:
+                a2a += 1
+
     print(f"SECTOR {sector}")
-    print("paths_total", sum(len(v) for v in catalog.values()))
-    print("endpoint_disjoint_pairs", endpoint_disjoint)
+    print("paths_total", len(paths))
+    print("endpoint_disjoint_pairs", len(pairs))
+    print("level1_full_assert", dict(sorted(level1.items())))
+    print("deterministic_buckets", {k: len(v) for k, v in sorted(buckets.items())})
+    print("level2_cases_checked", level2_cases)
+    print("exit_multiplicity", dict(sorted(Counter(info["multiplicity"] for info in independent_exit.values()).items())))
+    print("A2a_count", a2a)
+    print("A2b_count", a2b)
     print("WIDENED_BY_PATH_KEY_AND_ENDPOINT", dict(sorted(widened.items())))
-    print("CURRENT_STRUCTURAL_RECOMPUTE", dict(sorted(current.items())))
+    print("CURRENT_STRUCTURAL", dict(sorted(current.items())))
     print("HISTORICAL", HISTORICAL)
-    print("DELTA_WIDENED_MINUS_HISTORICAL", {
-        k: widened[k] - HISTORICAL[k] for k in HISTORICAL
-    })
-    print("DELTA_CURRENT_MINUS_HISTORICAL", {
-        k: current[k] - HISTORICAL[k] for k in HISTORICAL
-    })
-    return widened
+    print("DELTA_WIDENED_MINUS_HISTORICAL", {k: widened[k] - HISTORICAL[k] for k in HISTORICAL})
+    print("ALL_FIVE_MATCH", all_five_match)
+    return widened, all_five_match
 
 
 def main():
     d = int(sys.argv[1]) if len(sys.argv) > 1 else 5
-    z = run(d, "Z")
-    x = run(d, "X")
-    print("SECTOR_SYMMETRY", z == x)
-    print("HYPOTHESIS_STATUS", "UNRESOLVED")
-    print("REASON", "A matching category is necessary evidence but not sufficient historical provenance")
+    z, zmatch = run(d, "Z")
+    x, xmatch = run(d, "X")
+    assert z == x, "sector asymmetry in widened historical reconstruction"
+    assert zmatch == xmatch
+    print("HYPOTHESIS_STATUS", "STRONGLY_SUPPORTED_BUT_NOT_PROVEN" if zmatch else "NOT_CONFIRMED")
+    print("CORPUS_IDENTITY", "UNPROVEN")
+    print("HISTORICAL_CODE_IDENTITY", "UNPROVEN")
 
 
 if __name__ == "__main__":
