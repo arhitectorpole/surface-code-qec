@@ -106,26 +106,28 @@ def graph_signature(edges):
     return tuple(sorted((canonical_edge_signature(e) for e in edges), key=repr))
 
 
-def boundary_attachments(catalog):
-    attachments = defaultdict(list)
-    for key, paths in catalog.items():
-        if key[0] != "boundary":
-            continue
-        check, side = key[1], key[2]
-        for mask, node_path, edge_path in paths:
-            for edge in edge_path:
-                meta = edge[3]
-                if meta.get("kind") == "check_boundary":
-                    attachments[meta["qubit"]].append((check, side))
+def boundary_edge_attachments_from_graph(edges):
+    """Aggregate boundary attachments from the static graph edge list.
+
+    This deliberately does NOT inspect shortest-path occurrences. Each
+    check_boundary graph edge contributes exactly one (check, side)
+    attachment for its physical qubit, regardless of how many shortest
+    paths later traverse that edge.
+    """
+    attachments = defaultdict(set)
+    for _u, _v, _mask, meta in edges:
+        if meta.get("kind") == "check_boundary":
+            attachments[meta["qubit"]].add((meta["check"], meta["side"]))
     return attachments
 
 
-def analyze_boundary_exit_multiplicity(catalog):
-    raw = boundary_attachments(catalog)
+def analyze_boundary_exit_multiplicity(edges):
+    """Classify physical boundary exits from the graph, not the path corpus."""
+    raw = boundary_edge_attachments_from_graph(edges)
     result = {}
     anomalies = {}
     for q, items in raw.items():
-        attachments = tuple(sorted(set(items)))
+        attachments = tuple(sorted(items))
         n = len(attachments)
         if n == 1:
             mult = ExitMultiplicity.SINGLE
@@ -259,7 +261,7 @@ def run_sector(d, sector):
     graph = graph_signature(edges)
     catalog = connection_catalog(adjacency, geo["check_count"])
     paths = flatten_catalog(catalog, sector)
-    exit_info, anomalies = analyze_boundary_exit_multiplicity(catalog)
+    exit_info, anomalies = analyze_boundary_exit_multiplicity(edges)
     if anomalies:
         raise RuntimeError(f"ANOMALOUS exit multiplicity: {anomalies}")
     funnel, records = scan_pairs(paths, exit_info)
