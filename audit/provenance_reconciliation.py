@@ -1,15 +1,15 @@
 """Layered reconciliation instrument for the d=5 cancellation-census provenance gap.
 
 This is a reconstructed instrument, not a claim to reproduce the lost Run A
-implementation.  It is intentionally derived from the committed S0 geometry
+implementation. It is intentionally derived from the committed S0 geometry
 and Level-4 common graph/path helpers.
 
 The instrument stops conceptually at the first divergent layer:
 L0 geometry -> L1 graph -> L2 shortest-path corpus -> L3 canonicalization
 -> L4 overlap index -> L5 structural filters -> L6 motif classification.
 
-No physical oracle is used here.  No decoder result is inferred from this
-instrument.  The historical 22034/212 result is an external UNRECONCILED
+No physical oracle is used here. No decoder result is inferred from this
+instrument. The historical 22034/212 result is an external UNRECONCILED
 reference only.
 """
 from __future__ import annotations
@@ -30,7 +30,6 @@ sys.path.insert(0, str(ROOT / "tests"))
 from s0_geometry import build_unrotated_planar_surface_code
 from _level4_common import graph_construction, connection_catalog
 
-SIDES = ("T", "B", "L", "R")
 HISTORICAL_RUN_A = {"overlap_pairs": 22034, "motif_IIIa": 212}
 
 
@@ -86,17 +85,18 @@ def geometry_signature(code, sector):
     }
 
 
-def edge_signature(edge):
-    u, v, mask, meta = edge
-    return (u, v, meta.get("kind"), tuple(sorted(meta.get("checks", ()))),
-            meta.get("check"), meta.get("qubit"), meta.get("side"), mask
-
-
 def canonical_edge_signature(edge):
     u, v, mask, meta = edge
     endpoints = tuple(sorted((u, v), key=repr))
-    return (endpoints, meta.get("kind"), tuple(sorted(meta.get("checks", ()))),
-            meta.get("check"), meta.get("qubit"), meta.get("side"), mask
+    return (
+        endpoints,
+        meta.get("kind"),
+        tuple(sorted(meta.get("checks", ()))),
+        meta.get("check"),
+        meta.get("qubit"),
+        meta.get("side"),
+        mask,
+    )
 
 
 def graph_signature(edges):
@@ -109,7 +109,7 @@ def boundary_attachments(catalog):
         if key[0] != "boundary":
             continue
         check, side = key[1], key[2]
-        for mask, node_path, edge_path in paths:
+        for _, _, edge_path in paths:
             for edge in edge_path:
                 meta = edge[3]
                 if meta.get("kind") == "check_boundary":
@@ -131,14 +131,23 @@ def analyze_boundary_exit_multiplicity(catalog):
         else:
             mult = ExitMultiplicity.ANOMALOUS
             anomalies[q] = attachments
-        result[q] = {"qubit": q, "multiplicity": mult.value,
-                     "attachments": attachments}
+        result[q] = {
+            "qubit": q,
+            "multiplicity": mult.value,
+            "attachments": attachments,
+        }
     return result, anomalies
 
 
 def canonical_path_key(record):
-    return (record.key, record.endpoints, record.graph_cost,
-            record.mask, record.edge_signature, record.node_path)
+    return (
+        record.key,
+        record.endpoints,
+        record.graph_cost,
+        record.mask,
+        record.edge_signature,
+        record.node_path,
+    )
 
 
 def flatten_catalog(catalog, sector):
@@ -147,15 +156,21 @@ def flatten_catalog(catalog, sector):
         for mask, node_path, edge_path in catalog[key]:
             endpoints = (node_path[0], node_path[-1])
             edges = tuple(canonical_edge_signature(e) for e in edge_path)
-            records.append(PathRecord(sector, key, mask, tuple(node_path),
-                                      edges, endpoints, len(edge_path)))
+            records.append(
+                PathRecord(
+                    sector, key, mask, tuple(node_path), edges,
+                    endpoints, len(edge_path)
+                )
+            )
     records.sort(key=canonical_path_key)
     return records
 
 
 def path_signature(paths):
-    return tuple((p.key, p.mask, p.node_path, p.edge_signature, p.graph_cost)
-                 for p in paths)
+    return tuple(
+        (p.key, p.mask, p.node_path, p.edge_signature, p.graph_cost)
+        for p in paths
+    )
 
 
 def connection_histogram(paths):
@@ -166,7 +181,6 @@ def overlap_index(paths):
     index = defaultdict(list)
     for pid, p in enumerate(paths):
         mask = p.mask
-        q = 0
         while mask:
             bit = mask & -mask
             q = bit.bit_length() - 1
@@ -186,15 +200,18 @@ def classify_motif(p, q, exit_info):
     qnode = qbs[-1][1]
     if pnode == qnode:
         return "IIIa"
-    # IIIc is a census subclass: it denotes observed double exit
-    # multiplicity, not a proven geometric corner interpretation.
+
+    # IIIc is a census subclass: observed DOUBLE exit multiplicity, not a
+    # proven geometric corner interpretation.
     qnums = set()
     for path in (p, q):
         for edge in path.edge_signature:
             if edge[1] == "check_boundary" and edge[4] is not None:
                 qnums.add(edge[4])
-    if any(exit_info.get(x, {}).get("multiplicity") == ExitMultiplicity.DOUBLE.value
-           for x in qnums):
+    if any(
+        exit_info.get(x, {}).get("multiplicity") == ExitMultiplicity.DOUBLE.value
+        for x in qnums
+    ):
         return "IIIc"
     return "IIIb"
 
@@ -228,29 +245,48 @@ def scan_pairs(paths, exit_info):
         xor_mask = p.mask ^ q.mask
         delta = p.mask.bit_count() + q.mask.bit_count() - xor_mask.bit_count()
         ctype = cancellation_type(delta, xor_mask)
-        if ctype == "FULL_PHYSICAL_CANCELLATION":
-            status = "GRAPH_REPRESENTATION_ANOMALY"
-        else:
-            status = "CENSUS"
+        status = (
+            "GRAPH_REPRESENTATION_ANOMALY"
+            if ctype == "FULL_PHYSICAL_CANCELLATION"
+            else "CENSUS"
+        )
         composability = "UNPROVEN" if motif == "IIIa" else "PROVEN"
-        eligible = motif != "IIIa"
-        records.append(MotifRecord(
-            id=len(records), sector=p.sector, motif=motif,
-            cancellation_type=ctype, path_ids=(a, b),
-            endpoints=(p.endpoints, q.endpoints),
-            graph_costs=(p.graph_cost, q.graph_cost),
-            physical_masks=(p.mask, q.mask), xor_mask=xor_mask, delta=delta,
-            boundary_nodes=tuple(sorted(set(
-                [n[1] for n in p.node_path + q.node_path
-                 if isinstance(n, tuple) and n[0] == "b"]))),
-            composability=composability,
-            eligible_for_oracle_pipeline=eligible,
-            epistemic_status=status,
-        ))
+        records.append(
+            MotifRecord(
+                id=len(records),
+                sector=p.sector,
+                motif=motif,
+                cancellation_type=ctype,
+                path_ids=(a, b),
+                endpoints=(p.endpoints, q.endpoints),
+                graph_costs=(p.graph_cost, q.graph_cost),
+                physical_masks=(p.mask, q.mask),
+                xor_mask=xor_mask,
+                delta=delta,
+                boundary_nodes=tuple(
+                    sorted(
+                        set(
+                            [
+                                n[1]
+                                for n in p.node_path + q.node_path
+                                if isinstance(n, tuple) and n[0] == "b"
+                            ]
+                        )
+                    )
+                ),
+                composability=composability,
+                eligible_for_oracle_pipeline=(motif != "IIIa"),
+                epistemic_status=status,
+            )
+        )
+
     funnel["overlap_no_cancellation"] = sum(r.delta == 0 for r in records)
-    funnel["partial_cancellation"] = sum(r.cancellation_type == "PARTIAL" for r in records)
+    funnel["partial_cancellation"] = sum(
+        r.cancellation_type == "PARTIAL" for r in records
+    )
     funnel["full_cancellation"] = sum(
-        r.cancellation_type == "FULL_PHYSICAL_CANCELLATION" for r in records)
+        r.cancellation_type == "FULL_PHYSICAL_CANCELLATION" for r in records
+    )
     return funnel, records
 
 
@@ -274,12 +310,15 @@ def run_sector(d, sector):
         "paths_total": len(paths),
         "catalog_sha256": stable_hash(path_signature(paths)),
         "connection_path_histogram": sorted(
-            ((repr(k), v) for k, v in connection_histogram(paths).items())),
+            ((repr(k), v) for k, v in connection_histogram(paths).items())
+        ),
         "overlap_sha256": stable_hash(
-            sorted((q, tuple(ids)) for q, ids in overlap_index(paths).items())),
+            sorted((q, tuple(ids)) for q, ids in overlap_index(paths).items())
+        ),
         "motif_sha256": stable_hash([asdict(r) for r in records]),
         "exit_multiplicity_summary": Counter(
-            v["multiplicity"] for v in exit_info.values()),
+            v["multiplicity"] for v in exit_info.values()
+        ),
         "funnel": dict(funnel),
         "historical_run_A": HISTORICAL_RUN_A,
         "records": records,
@@ -289,15 +328,24 @@ def run_sector(d, sector):
 def compact(result):
     return {
         "sector": result["sector"],
-        "geometry": (result["geometry"]["data_count"],
-                     result["geometry"]["check_count"]),
+        "geometry": (
+            result["geometry"]["data_count"],
+            result["geometry"]["check_count"],
+        ),
         "graph_edges": result["graph_edges"],
         "paths_total": result["paths_total"],
         "funnel": result["funnel"],
         "exit_multiplicity_summary": dict(result["exit_multiplicity_summary"]),
-        "hashes": {k: result[k] for k in (
-            "geometry_sha256", "graph_sha256", "catalog_sha256",
-            "overlap_sha256", "motif_sha256")},
+        "hashes": {
+            k: result[k]
+            for k in (
+                "geometry_sha256",
+                "graph_sha256",
+                "catalog_sha256",
+                "overlap_sha256",
+                "motif_sha256",
+            )
+        },
         "historical_run_A": result["historical_run_A"],
     }
 
