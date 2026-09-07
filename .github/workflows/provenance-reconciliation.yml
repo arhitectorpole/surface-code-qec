@@ -18,3 +18,6 @@ jobs:
         run: |
           python audit/provenance_reconciliation.py 3
           python audit/provenance_reconciliation.py 5
+      - name: Run d=5 CC-only order-sensitivity probe
+        run: |
+          python audit/cc_only_order_sensitivity.py 5
