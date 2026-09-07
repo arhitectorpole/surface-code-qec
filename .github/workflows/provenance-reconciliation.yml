@@ -38,3 +38,13 @@ jobs:
           python-version: "3.11"
       - name: Run d=5 full-corpus CC consistency probe
         run: python audit/full_corpus_cc_consistency.py 5
+
+  historical-motif-hypothesis-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run d=5 historical motif-definition hypothesis probe
+        run: python audit/historical_motif_definition_probe.py 5
