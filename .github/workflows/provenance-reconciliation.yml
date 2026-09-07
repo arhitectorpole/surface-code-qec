@@ -18,6 +18,13 @@ jobs:
         run: |
           python audit/provenance_reconciliation.py 3
           python audit/provenance_reconciliation.py 5
+
+  cc-order-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Run d=5 CC-only order-sensitivity probe
-        run: |
-          python audit/cc_only_order_sensitivity.py 5
+        run: python audit/cc_only_order_sensitivity.py 5
