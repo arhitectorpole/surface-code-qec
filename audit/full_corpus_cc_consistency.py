@@ -4,6 +4,10 @@ This diagnostic isolates the CC/CC subcomputation inside the mixed CC+CB corpus
 and compares it with the same scanner run on the CC-only subset. It does not use
 historical Run A and makes no production or boundary-ontology claim.
 
+The CC-only comparison deliberately supplies an empty exit-info mapping because
+motif I is boundary-independent. Any boundary-exit analysis failure must not
+contaminate this probe.
+
 If these disagree, the mixed corpus changes a computation that should be
 identical on the CC/CC subset. That is a blocking internal bug. If they agree,
 then the previously reported 13266 value cannot be attributed to the currently
@@ -23,26 +27,24 @@ sys.path.insert(0, str(ROOT / "audit"))
 
 from s0_geometry import build_unrotated_planar_surface_code
 from _level4_common import graph_construction, connection_catalog
-from provenance_reconciliation import (
-    analyze_boundary_exit_multiplicity,
-    flatten_catalog,
-    scan_pairs,
-)
+from provenance_reconciliation import flatten_catalog, scan_pairs
 
 
 def run_sector(d: int, sector: str):
     code = build_unrotated_planar_surface_code(d)
     adjacency, _ = graph_construction(code, sector)
-    catalog = connection_catalog(adjacency, len(code["z_checks"] if sector == "Z" else code["x_checks"]))
-    exit_info, anomalies = analyze_boundary_exit_multiplicity(catalog)
-    if anomalies:
-        raise RuntimeError(f"unexpected exit multiplicity anomalies: {anomalies}")
+    catalog = connection_catalog(
+        adjacency,
+        len(code["z_checks"] if sector == "Z" else code["x_checks"]),
+    )
 
     all_paths = flatten_catalog(catalog, sector)
     cc_paths = [p for p in all_paths if p.key[0] == "pair"]
 
-    full_funnel, _ = scan_pairs(all_paths, exit_info)
-    cc_funnel_from_full, _ = scan_pairs(cc_paths, exit_info)
+    # For CC/CC pairs classify_motif() is independent of exit_info.
+    empty_exit_info = {}
+    full_funnel, _ = scan_pairs(all_paths, empty_exit_info)
+    cc_funnel_from_full, _ = scan_pairs(cc_paths, empty_exit_info)
 
     keys = (
         "overlap_pairs",
