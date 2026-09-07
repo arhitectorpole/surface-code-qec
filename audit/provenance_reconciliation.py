@@ -91,8 +91,15 @@ def geometry_signature(code, sector):
 def canonical_edge_signature(edge):
     u, v, mask, meta = edge
     endpoints = tuple(sorted((u, v), key=repr))
-    return (endpoints, meta.get("kind"), tuple(sorted(meta.get("checks", ()))),
-            meta.get("check"), meta.get("qubit"), meta.get("side"), mask
+    return (
+        endpoints,
+        meta.get("kind"),
+        tuple(sorted(meta.get("checks", ()))),
+        meta.get("check"),
+        meta.get("qubit"),
+        meta.get("side"),
+        mask,
+    )
 
 
 def graph_signature(edges):
