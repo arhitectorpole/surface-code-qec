@@ -28,3 +28,13 @@ jobs:
           python-version: "3.11"
       - name: Run d=5 CC-only order-sensitivity probe
         run: python audit/cc_only_order_sensitivity.py 5
+
+  cc-consistency-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run d=5 full-corpus CC consistency probe
+        run: python audit/full_corpus_cc_consistency.py 5
