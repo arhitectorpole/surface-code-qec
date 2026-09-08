@@ -5,8 +5,9 @@ implementation. It is intentionally derived from the committed S0 geometry
 and Level-4 common graph/path helpers.
 
 The instrument stops conceptually at the first divergent layer:
-L0 geometry -> L1 graph -> L2 shortest-path corpus -> L3 canonicalization
--> L4 overlap index -> L5 structural filters -> L6 motif classification.
+L0 geometry -> L1 graph -> graph/catalog boundary cross-check
+-> L2 shortest-path corpus -> L3 canonicalization -> L4 overlap index
+-> L5 structural filters -> L6 motif classification.
 
 No physical oracle is used here. No decoder result is inferred from this
 instrument. The historical 22034/212 result is an external UNRECONCILED
@@ -40,6 +41,12 @@ class ExitMultiplicity(str, Enum):
     SINGLE = "SINGLE"
     DOUBLE = "DOUBLE"
     ANOMALOUS = "ANOMALOUS"
+
+
+class GraphCatalogInconsistency(RuntimeError):
+    """Hard-stop status for disagreement between graph edges and catalog refs."""
+
+    status = "GRAPH_CATALOG_INCONSISTENCY"
 
 
 @dataclass(frozen=True)
@@ -106,8 +113,18 @@ def graph_signature(edges):
     return tuple(sorted((canonical_edge_signature(e) for e in edges), key=repr))
 
 
+def graph_boundary_attachment_triples(edges):
+    """Return static graph boundary attachments as (check, side, qubit)."""
+    triples = set()
+    for _u, _v, _mask, meta in edges:
+        if meta.get("kind") != "check_boundary":
+            continue
+        triples.add((meta["check"], meta["side"], meta["qubit"]))
+    return triples
+
+
 def boundary_edge_attachments_from_graph(edges):
-    """Aggregate boundary attachments from the static graph edge list.
+    """Aggregate physical boundary attachments from the static graph edge list.
 
     This deliberately does NOT inspect shortest-path occurrences. Each
     check_boundary graph edge contributes exactly one (check, side)
@@ -115,10 +132,85 @@ def boundary_edge_attachments_from_graph(edges):
     paths later traverse that edge.
     """
     attachments = defaultdict(set)
-    for _u, _v, _mask, meta in edges:
-        if meta.get("kind") == "check_boundary":
-            attachments[meta["qubit"]].add((meta["check"], meta["side"]))
+    for check, side, qubit in graph_boundary_attachment_triples(edges):
+        attachments[qubit].add((check, side))
     return attachments
+
+
+def catalog_boundary_attachment_triples(catalog):
+    """Derive boundary attachment refs from boundary connections in catalog.
+
+    A catalog boundary connection ('boundary', check, side) is accepted only
+    when each shortest-path representative contains a concrete check_boundary
+    edge whose metadata carries the same check and side. The physical qubit of
+    that edge is the catalog-derived exit qubit.
+
+    Pair connections are intentionally ignored here: they may traverse a
+    boundary node, but they are not boundary-termination references.
+    """
+    triples = set()
+    malformed = []
+    for key in sorted(catalog, key=repr):
+        if not key or key[0] != "boundary":
+            continue
+        check, side = key[1], key[2]
+        for path_index, (_mask, _node_path, edge_path) in enumerate(catalog[key]):
+            matching = []
+            for edge in edge_path:
+                meta = edge[3]
+                if (meta.get("kind") == "check_boundary"
+                        and meta.get("check") == check
+                        and meta.get("side") == side):
+                    matching.append(meta.get("qubit"))
+            matching = [q for q in matching if q is not None]
+            if not matching:
+                malformed.append({
+                    "key": key,
+                    "path_index": path_index,
+                    "reason": "boundary path lacks matching check_boundary edge",
+                })
+                continue
+            for qubit in matching:
+                triples.add((check, side, qubit))
+    return triples, malformed
+
+
+def catalog_derived_exit_attachments(catalog):
+    """Diagnostic catalog-derived attachment map; graph remains source of truth."""
+    triples, malformed = catalog_boundary_attachment_triples(catalog)
+    attachments = defaultdict(set)
+    for check, side, qubit in triples:
+        attachments[qubit].add((check, side))
+    return {
+        q: tuple(sorted(items))
+        for q, items in sorted(attachments.items())
+    }, malformed
+
+
+def cross_check_graph_catalog_boundary_attachments(edges, catalog):
+    """Enforce Catalog ⊆ Graph and Graph ⊆ Catalog before path interpretation."""
+    graph_triples = graph_boundary_attachment_triples(edges)
+    catalog_triples, malformed = catalog_boundary_attachment_triples(catalog)
+
+    catalog_not_in_graph = sorted(catalog_triples - graph_triples)
+    graph_not_in_catalog = sorted(graph_triples - catalog_triples)
+    if malformed or catalog_not_in_graph or graph_not_in_catalog:
+        details = {
+            "status": GraphCatalogInconsistency.status,
+            "malformed_catalog_boundary_paths": malformed,
+            "catalog_not_in_graph": catalog_not_in_graph,
+            "graph_not_in_catalog": graph_not_in_catalog,
+            "graph_attachment_count": len(graph_triples),
+            "catalog_attachment_count": len(catalog_triples),
+        }
+        raise GraphCatalogInconsistency(json.dumps(details, sort_keys=True, default=list))
+
+    return {
+        "status": "PASS",
+        "attachment_count": len(graph_triples),
+        "graph_sha256": stable_hash(sorted(graph_triples)),
+        "catalog_sha256": stable_hash(sorted(catalog_triples)),
+    }
 
 
 def analyze_boundary_exit_multiplicity(edges):
@@ -257,13 +349,21 @@ def scan_pairs(paths, exit_info):
 def run_sector(d, sector):
     code = build_unrotated_planar_surface_code(d)
     geo = geometry_signature(code, sector)
+
+    # L1: construct static graph and establish graph-level exit multiplicity.
     adjacency, edges = graph_construction(code, sector)
     graph = graph_signature(edges)
-    catalog = connection_catalog(adjacency, geo["check_count"])
-    paths = flatten_catalog(catalog, sector)
     exit_info, anomalies = analyze_boundary_exit_multiplicity(edges)
     if anomalies:
         raise RuntimeError(f"ANOMALOUS exit multiplicity: {anomalies}")
+
+    # Boundary contract: the shortest-path catalog must be extensionally
+    # consistent with the graph before any catalog path is flattened or used.
+    catalog = connection_catalog(adjacency, geo["check_count"])
+    graph_catalog_check = cross_check_graph_catalog_boundary_attachments(edges, catalog)
+
+    # Only after the hard-stop consistency layer may path interpretation begin.
+    paths = flatten_catalog(catalog, sector)
     funnel, records = scan_pairs(paths, exit_info)
     return {
         "sector": sector,
@@ -271,6 +371,7 @@ def run_sector(d, sector):
         "geometry_sha256": stable_hash(geo),
         "graph_edges": len(edges),
         "graph_sha256": stable_hash(graph),
+        "graph_catalog_cross_check": graph_catalog_check,
         "paths_total": len(paths),
         "catalog_sha256": stable_hash(path_signature(paths)),
         "connection_path_histogram": sorted(
@@ -292,6 +393,7 @@ def compact(result):
         "geometry": (result["geometry"]["data_count"],
                      result["geometry"]["check_count"]),
         "graph_edges": result["graph_edges"],
+        "graph_catalog_cross_check": result["graph_catalog_cross_check"],
         "paths_total": result["paths_total"],
         "funnel": result["funnel"],
         "exit_multiplicity_summary": dict(result["exit_multiplicity_summary"]),
