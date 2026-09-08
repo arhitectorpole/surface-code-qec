@@ -8,12 +8,17 @@ DOUBLE-exit subdivision for IIIc. The hypothesis is all-or-nothing: every
 historical class total must match simultaneously. Any mismatch means
 NOT_CONFIRMED. Even a five-row match does not prove corpus/source identity.
 
+The static graph is the source of truth for boundary-exit multiplicity. Before
+any path-level probe runs, graph boundary attachments and boundary references
+in the connection catalog are checked bidirectionally. Catalog-derived exit
+attachments are retained only as a diagnostic representation after that hard
+consistency check; they are not described as an independent source of truth.
+
 Level 1 is a full-corpus cheap assertion. It derives boundary presence directly
-from edge metadata and checks classify_motif() against that independent boolean
-predicate. Level 2 is a deterministic boundary-focused corpus covering A/B/C
-class boundaries, including A2a/A2b CC/CC paths that traverse a boundary node.
-Exit multiplicity is independently recomputed from the full catalog rather than
-using analyze_boundary_exit_multiplicity().
+from canonical path edge metadata and checks classify_motif() against that
+separate boolean predicate. Level 2 is a deterministic boundary-focused corpus
+covering A/B/C class boundaries, including A2a/A2b CC/CC paths that traverse a
+boundary node.
 """
 from __future__ import annotations
 
@@ -29,13 +34,19 @@ sys.path.insert(0, str(ROOT / "audit"))
 
 from s0_geometry import build_unrotated_planar_surface_code
 from _level4_common import graph_construction, connection_catalog
-from provenance_reconciliation import classify_motif, analyze_boundary_exit_multiplicity, flatten_catalog
+from provenance_reconciliation import (
+    analyze_boundary_exit_multiplicity,
+    catalog_derived_exit_attachments,
+    classify_motif,
+    cross_check_graph_catalog_boundary_attachments,
+    flatten_catalog,
+)
 
 HISTORICAL = {"I": 16558, "II": 4864, "IIIa": 212, "IIIb": 18, "IIIc": 382}
 
 
 def boundary_edge_qubits(path):
-    """Independent predicate: inspect canonical edge metadata directly."""
+    """Separate path predicate: inspect canonical edge metadata directly."""
     return {edge[4] for edge in path.edge_signature if edge[1] == "check_boundary"}
 
 
@@ -51,30 +62,26 @@ def side(path):
     return path.key[2] if path.key[0] == "boundary" else None
 
 
-def recompute_exit_multiplicity(catalog):
-    """Independent full-catalog recomputation; never calls analyze_*()."""
-    attachments = defaultdict(set)
-    for key, paths in catalog.items():
-        if key[0] != "boundary":
-            continue
-        check, boundary_side = key[1], key[2]
-        for _, _, edge_path in paths:
-            for edge in edge_path:
-                meta = edge[3]
-                if meta.get("kind") == "check_boundary":
-                    attachments[meta["qubit"]].add((check, boundary_side))
+def catalog_derived_exit_diagnostic(catalog):
+    """Build a catalog-derived multiplicity view after graph↔catalog validation.
+
+    This is deliberately named diagnostic rather than recomputation: its source
+    is the catalog, so it is not independent of catalog path construction.
+    """
+    attachments, malformed = catalog_derived_exit_attachments(catalog)
+    assert not malformed, malformed
     result = {}
     for q, items in sorted(attachments.items()):
         n = len(items)
         result[q] = {
             "multiplicity": "SINGLE" if n == 1 else "DOUBLE" if n == 2 else "ANOMALOUS",
-            "attachments": tuple(sorted(items)),
+            "attachments": items,
         }
     return result
 
 
 def independent_widened_label(p, q, exit_info):
-    """Historical hypothesis, independent of classify_motif()."""
+    """Historical class hypothesis, structurally separate from classify_motif()."""
     fp, fq = family(p), family(q)
     if fp == fq == "pair":
         return "I"
@@ -189,30 +196,50 @@ def level2_assert(paths, buckets, exit_info):
 
 def run(d, sector):
     code = build_unrotated_planar_surface_code(d)
-    adjacency, _ = graph_construction(code, sector)
+    adjacency, edges = graph_construction(code, sector)
     check_count = len(code["z_checks"] if sector == "Z" else code["x_checks"])
-    catalog = connection_catalog(adjacency, check_count)
-    paths = flatten_catalog(catalog, sector)
 
-    production_exit, anomalies = analyze_boundary_exit_multiplicity(catalog)
-    independent_exit = recompute_exit_multiplicity(catalog)
+    # Source of truth: static graph boundary-edge attachments.
+    production_exit, anomalies = analyze_boundary_exit_multiplicity(edges)
     assert not anomalies, anomalies
-    assert production_exit == independent_exit, ("exit multiplicity mismatch", production_exit, independent_exit)
 
+    catalog = connection_catalog(adjacency, check_count)
+
+    # Hard stop before flattening or motif interpretation.
+    cross_check = cross_check_graph_catalog_boundary_attachments(edges, catalog)
+    assert cross_check["status"] == "PASS", cross_check
+
+    # Catalog view is now only a diagnostic representation. Equality here is
+    # expected because the bidirectional edge-level contract has already passed.
+    catalog_exit = catalog_derived_exit_diagnostic(catalog)
+    graph_attachment_view = {
+        q: {
+            "multiplicity": info["multiplicity"],
+            "attachments": info["attachments"],
+        }
+        for q, info in sorted(production_exit.items())
+    }
+    assert graph_attachment_view == catalog_exit, (
+        "graph/catalog exit diagnostic mismatch",
+        graph_attachment_view,
+        catalog_exit,
+    )
+
+    paths = flatten_catalog(catalog, sector)
     pairs = collect_pairs(paths)
     level1 = level1_full_assert(paths, pairs)
-    buckets = deterministic_boundary_corpus(paths, pairs, independent_exit)
-    level2_cases = level2_assert(paths, buckets, independent_exit)
+    buckets = deterministic_boundary_corpus(paths, pairs, production_exit)
+    level2_cases = level2_assert(paths, buckets, production_exit)
 
     widened = Counter()
     current = Counter()
     for a, b in pairs:
         p, q = paths[a], paths[b]
-        widened[independent_widened_label(p, q, independent_exit)] += 1
+        widened[independent_widened_label(p, q, production_exit)] += 1
         current[classify_motif(p, q, production_exit)] += 1
 
     all_five_match = all(widened[k] == HISTORICAL[k] for k in HISTORICAL)
-    doubles = {q for q, info in independent_exit.items() if info["multiplicity"] == "DOUBLE"}
+    doubles = {q for q, info in production_exit.items() if info["multiplicity"] == "DOUBLE"}
     a2a = a2b = 0
     for a, b in pairs:
         p, q = paths[a], paths[b]
@@ -223,12 +250,13 @@ def run(d, sector):
                 a2a += 1
 
     print(f"SECTOR {sector}")
+    print("graph_catalog_cross_check", cross_check)
     print("paths_total", len(paths))
     print("endpoint_disjoint_pairs", len(pairs))
     print("level1_full_assert", dict(sorted(level1.items())))
     print("deterministic_buckets", {k: len(v) for k, v in sorted(buckets.items())})
     print("level2_cases_checked", level2_cases)
-    print("exit_multiplicity", dict(sorted(Counter(info["multiplicity"] for info in independent_exit.values()).items())))
+    print("exit_multiplicity", dict(sorted(Counter(info["multiplicity"] for info in production_exit.values()).items())))
     print("A2a_count", a2a)
     print("A2b_count", a2b)
     print("WIDENED_BY_PATH_KEY_AND_ENDPOINT", dict(sorted(widened.items())))
