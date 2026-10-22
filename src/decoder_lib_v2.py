@@ -462,6 +462,37 @@ def decode_sector_with_diagnostics(syndrome: int, graph: SectorGraph, logical_ma
     return correction, SectorDiagnostics(
         len(plans), truncated, frozenset(witnesses), wtrunc, classes, len(classes) > 1)
 
+@dataclass(frozen=True)
+class MajorityTieCorrection:
+    bitmask: int
+    weight: int
+    syndrome_reproduced: int
+    count_class0: int          # distinct minimum-weight witnesses with logical class 0
+    count_class1: int          # ... with logical class 1
+    tie_decided_by_count: bool  # True iff a logical tie was resolved by unequal counts
+    truncated: bool            # enumeration caps hit: counts are lower bounds, rule fell back
+
+def decode_sector_majority(syndrome: int, graph: SectorGraph, logical_mask: int) -> MajorityTieCorrection:
+    """Exact MWPM with a likelihood-motivated logical tie rule.
+
+    On a logical tie (minimum-weight corrections exist in both logical classes) the
+    class with MORE distinct minimum-weight witnesses is chosen: at leading order in p
+    that class is the more probable one. Within the chosen class the lexicographically
+    smallest (weight, mask) witness is returned. If counts are equal, or enumeration
+    was truncated, the default decode_sector() correction is returned unchanged.
+    """
+    base, diag = decode_sector_with_diagnostics(syndrome, graph, logical_mask)
+    n0 = sum(1 for w in diag.witness_masks if (popcount(w & logical_mask) & 1) == 0)
+    n1 = len(diag.witness_masks) - n0
+    truncated = bool(diag.matchings_truncated or diag.witnesses_truncated)
+    if len(diag.logical_classes) < 2 or n0 == n1 or truncated:
+        return MajorityTieCorrection(base.bitmask, base.weight, base.syndrome_reproduced,
+                                     n0, n1, False, truncated)
+    want = 1 if n1 > n0 else 0
+    best = min((w for w in diag.witness_masks if (popcount(w & logical_mask) & 1) == want))
+    return MajorityTieCorrection(best, popcount(best), syndrome_of_sector_mask(graph, best),
+                                 n0, n1, True, False)
+
 _SECTOR_GRAPH_CACHE: Dict[Tuple[int, str], SectorGraph] = {}
 
 def _sector_graph(d: int, sector: str) -> SectorGraph:

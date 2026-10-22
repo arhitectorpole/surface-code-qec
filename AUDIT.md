@@ -283,3 +283,32 @@ Findings:
 - The library decoder's deterministic tie rule lies within [best, worst] in every check. At d=3 (exact, p=0.01/0.05/0.1) it sits at 97%/88%/91% of the way from best to worst, i.e. close to the worst rule. At d=5 (Monte Carlo, 3000 samples, p=0.03/0.05/0.1) the estimates are 0.0077/0.0257/0.1480 against exact bounds [0.0054, 0.0076], [0.0229, 0.0317], [0.1305, 0.1663]: consistent with the same upper-half behaviour, but the sampling error is too large to place it precisely.
 
 Scope: single error type, code-capacity noise (perfect measurements, no correlated errors). Library-decoder rates at d=5 are Monte Carlo only. The census and rates say nothing about d>=7.
+
+### Level 5 addendum — count-based logical tie rule (`decode_sector_majority`)
+
+**Date:** 2026-10-22
+
+Rule: on a logical tie, choose the class with more distinct minimum-weight witnesses (leading order in p, that class is the more probable one). Equal counts, or truncated enumeration, fall back to the default `decode_sector()` correction. Added as a separate function; the default `decode()` / `decode_sector()` is unchanged.
+
+`tests/level5_tie_rule_majority.py` evaluates the rule exactly (no sampling). Counts N_w(s, c) of weight-w errors per (syndrome, class) come from an integer Walsh-Hadamard transform; rates use the same exact joint distribution as `level5_logical_failure_exact.py`. Output: `audit/artifacts/level5_tie_rule_majority.stdout`.
+
+Failure rate relative to MLD (d=5, Z sector; X identical):
+
+| p | MAJ / MLD | MAJ-deep / MLD | random ties / MLD |
+|---|-----------|----------------|-------------------|
+| 0.001 | 1.0004 | 1.0000 | 1.19 |
+| 0.01 | 1.0040 | 1.0000 | 1.20 |
+| 0.05 | 1.0118 | 1.0000 | 1.19 |
+| 0.10 | 1.0127 | 1.0013 | 1.14 |
+
+d=3: MAJ / MLD = 1.0002 (p=0.001), 1.0018 (p=0.01), 1.0111 (p=0.1).
+
+Findings:
+
+- Leading-order counting recovers almost all of the tie-breaking loss: at d=5, p=0.001 the excess over MLD drops from 19% (fair coin) to 0.04%. The exponent is unchanged (slope 3.00); only the coefficient moves.
+- MAJ leaves 69852 of 481946 d=5 ties undecided (equal counts at the tie weight; 8 of 26 at d=3). In those cases the fallback is the default deterministic rule. The table above scores them as a fair coin, so the real library result for those syndromes lies between best and worst.
+- MAJ-deep (compare N_w, N_{w+1}, ... lexicographically up to weight 14) decides every tie at both d and stays within 0.5% of MLD even at p=0.15. This is a diagnostic of what a more refined rule could reach; it is not implemented in the library (it needs non-minimum witnesses).
+- Library cross-check: the witness counts of `decode_sector_majority` equal N_w exactly on all 26 d=3 ties and on 400 sampled d=5 ties per sector (0 truncated, 0 class mismatches, 0 count mismatches). This also supports completeness of the witness enumeration on those samples; it is not a proof for all d=5 syndromes.
+- The exact rate of the library's fallback rule (default decoder) on the equal-count ties was not computed at d=5; the "MAJ" row assumes a fair coin there.
+
+Scope unchanged: single error type, code-capacity noise, d=3 and d=5 only.
