@@ -471,6 +471,7 @@ class MajorityTieCorrection:
     count_class1: int          # ... with logical class 1
     tie_decided_by_count: bool  # True iff a logical tie was resolved by unequal counts
     truncated: bool            # enumeration caps hit: counts are lower bounds, rule fell back
+    num_matchings: int = 0     # optimal matchings enumerated (cap: MAX_MATCHINGS)
 
 def decode_sector_majority(syndrome: int, graph: SectorGraph, logical_mask: int) -> MajorityTieCorrection:
     """Exact MWPM with a likelihood-motivated logical tie rule.
@@ -487,11 +488,11 @@ def decode_sector_majority(syndrome: int, graph: SectorGraph, logical_mask: int)
     truncated = bool(diag.matchings_truncated or diag.witnesses_truncated)
     if len(diag.logical_classes) < 2 or n0 == n1 or truncated:
         return MajorityTieCorrection(base.bitmask, base.weight, base.syndrome_reproduced,
-                                     n0, n1, False, truncated)
+                                     n0, n1, False, truncated, diag.num_optimal_matchings)
     want = 1 if n1 > n0 else 0
     best = min((w for w in diag.witness_masks if (popcount(w & logical_mask) & 1) == want))
     return MajorityTieCorrection(best, popcount(best), syndrome_of_sector_mask(graph, best),
-                                 n0, n1, True, False)
+                                 n0, n1, True, False, diag.num_optimal_matchings)
 
 _SECTOR_GRAPH_CACHE: Dict[Tuple[int, str], SectorGraph] = {}
 

@@ -312,3 +312,20 @@ Findings:
 - Z and X sectors agree to 3e-10 (relative) for MAJ and MAJ-deep at d=3 and d=5. The script asserts the headline ratios (MAJ/MLD <= 1.02, MAJ-deep/MLD <= 1.01, library rule <= 1.02) and was mutation-checked: inverting the rule, disabling it, or miscounting witnesses each turns the result to FAIL.
 
 Scope unchanged: single error type, code-capacity noise, d=3 and d=5 only.
+
+### Level 5 addendum — exhaustive d=5 check of `decode_sector_majority`
+
+**Date:** 2026-10-22
+
+`tests/level5_tie_rule_exhaustive_d5.py Z|X` runs `decode_sector_majority` on **every** d=5 logical tie (481946 per sector, equal to the census) and compares against the independent count reference N_w(s, c) (integer Walsh-Hadamard transform; shares no matching or path enumeration with the decoder). Outputs: `audit/artifacts/level5_tie_rule_exhaustive_d5_{Z,X}.stdout`.
+
+Per tie it requires: no truncation, matchings below `MAX_MATCHINGS`, witness counts equal to N_w, chosen class equal to the larger count (412094 ties), default-decoder correction on equal counts (69852 ties), and a correction that reproduces the syndrome with weight equal to the tie weight.
+
+Result (both sectors): 0 violations, RESULT PASS.
+
+- Truncation: none. The largest number of optimal matchings enumerated on any tie is 1146 (cap 5000); the largest number of minimum-weight errors at a tie is 651 (witness cap 20000, path cap 2000). The "rule falls back silently on truncation" path is therefore never taken at d=5.
+- The exact rate of the library rule reported above (1.0003x MLD at p=0.001 ... 1.0113x at 0.15) now rests on an exhaustive, not sampled, agreement between implementation and reference.
+- Mutation check on the first 3000 ties: inverting the rule gives 2431 class violations; lowering `MAX_MATCHINGS` to 50 is detected as 23 truncations and 2 at-cap cases. Both turn the result to FAIL.
+- `MajorityTieCorrection` gained a `num_matchings` field (additive, default 0).
+
+What this does not establish: agreement with the count reference is not optimality relative to MLD. The rule approximates the more probable class at leading order in p, and the exact-rate comparison shows a remaining gap of up to ~1.1% over MLD at d=5 (about 0.03% at p=0.001). Nothing is claimed for d>=7, noise with measurement errors, or correlated noise.
