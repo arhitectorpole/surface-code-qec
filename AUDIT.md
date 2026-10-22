@@ -258,3 +258,28 @@ Results (identical for Z and X sectors):
 Cross-checks: d=3 against the exhaustive oracle (all syndromes, both sectors): 0 mismatches. d=5 against `decode_sector_with_diagnostics` on 300 random syndromes per sector: 0 mismatches, no truncation.
 
 Scope: the census concerns exact physical minima per logical class and is independent of the decoder. It does not say how often a decoder's single deterministic choice lands in the wrong class under a noise model; that requires a probability model, which is not part of this record.
+
+### Level 5 addendum — exact logical failure rates under i.i.d. noise
+
+**Date:** 2026-10-22
+
+`tests/level5_logical_failure_exact.py` computes exact logical failure rates (no sampling) for i.i.d. single-type errors with per-qubit flip probability p. The joint distribution P(syndrome, logical class) is obtained by Walsh-Hadamard transform over the extended syndrome space; at d=3 it matches brute-force enumeration of all 2^13 masks to within 5e-16. Failure means the decoder's chosen logical class differs from the error's class. Rates for the Z and X sectors agree to < 1e-15 and are reported for the Z sector.
+
+Rules compared (exact): MLD (optimal), minimum weight with ties resolved toward the likelier class (best), by fair coin (random), toward the less likely class (worst).
+
+Selected results (failure rate):
+
+| d | p | MLD | MW-best | MW-random | MW-worst |
+|---|---|-----|---------|-----------|----------|
+| 3 | 0.01 | 2.013e-3 | 2.013e-3 | 2.208e-3 | 2.402e-3 |
+| 5 | 0.001 | 2.100e-7 | 2.100e-7 | 2.503e-7 | 2.906e-7 |
+| 5 | 0.01 | 2.087e-4 | 2.087e-4 | 2.508e-4 | 2.928e-4 |
+| 5 | 0.05 | 2.288e-2 | 2.288e-2 | 2.727e-2 | 3.165e-2 |
+
+Findings:
+
+- Low-p log-log slope is 2.00 at d=3 and 3.00 at d=5, i.e. exponent (d+1)/2 for every rule. The tie rule changes the coefficient, not the exponent: at d=5, p=0.001, random ties cost 1.19x and worst-case ties 1.38x the MLD failure rate.
+- Minimum weight with the likelier class chosen on ties equals MLD to ~1e-6 relative at low p (d=5, p<=0.03) and deviates slightly at high p (e.g. 0.1304 vs 0.1305 at p=0.1), so the loss from min-weight decoding is concentrated in tie-breaking.
+- The library decoder's deterministic tie rule lies within [best, worst] in every check. At d=3 (exact, p=0.01/0.05/0.1) it sits at 97%/88%/91% of the way from best to worst, i.e. close to the worst rule. At d=5 (Monte Carlo, 3000 samples, p=0.03/0.05/0.1) the estimates are 0.0077/0.0257/0.1480 against exact bounds [0.0054, 0.0076], [0.0229, 0.0317], [0.1305, 0.1663]: consistent with the same upper-half behaviour, but the sampling error is too large to place it precisely.
+
+Scope: single error type, code-capacity noise (perfect measurements, no correlated errors). Library-decoder rates at d=5 are Monte Carlo only. The census and rates say nothing about d>=7.
