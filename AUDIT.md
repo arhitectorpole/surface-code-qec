@@ -329,3 +329,26 @@ Result (both sectors): 0 violations, RESULT PASS.
 - `MajorityTieCorrection` gained a `num_matchings` field (additive, default 0).
 
 What this does not establish: agreement with the count reference is not optimality relative to MLD. The rule approximates the more probable class at leading order in p, and the exact-rate comparison shows a remaining gap of up to ~1.1% over MLD at d=5 (about 0.03% at p=0.001). Nothing is claimed for d>=7, noise with measurement errors, or correlated noise.
+
+### Level 5 addendum — where the remaining gap to MLD comes from (d=5)
+
+**Date:** 2026-10-22
+
+`tests/level5_gap_decomposition_d5.py` splits the excess of the count rule (MAJ) over MLD into categories (artifact: `audit/artifacts/level5_gap_decomposition_d5.stdout`). Sector Z shown; sector X gives identical numbers of rule-vs-MLD disagreements.
+
+| p | excess / MLD | non-tie | decided tie | undecided tie (equal counts, fair coin) | decided ties where rule class != MLD class | MAJ-deep / MLD |
+|---|---|---|---|---|---|---|
+| 0.001 | 0.044% | 0 | 0 | 0.044% | 0 | 1.00000 |
+| 0.01 | 0.40% | 0 | 0 | 0.40% | 4 | 1.00000 |
+| 0.1 | 1.27% | 0.075% | 0.044% | 1.15% | 16680 | 1.00129 |
+
+Findings:
+
+- At low p the whole gap is in logical ties where both classes have the same number of minimum-weight errors. At p=0.001, 98% of it comes from the 96 ties of weight 3 (undecided ties by weight: 3:96, 4:1672, 5:10544, 6:27206, 7:24592, 8:5596, 9:142, 10:4). There the count rule carries no information and the next weight order decides.
+- At p<=0.003 the count rule never disagrees with the MLD class on a decided tie. At p=0.01 there are 4 such syndromes (per sector); in the example checked, counts at the tie weight 9 are [64, 63] (nearly equal) and at weight 10 [254, 371], so the next order overturns a one-error lead. Their contribution to the failure rate is below 1e-6 of MLD.
+- Comparing counts lexicographically over successive weights (MAJ-deep) matches MLD to within 1e-5 for p<=0.05. At p=0.1 it is 1.00129x; there errors of higher weight are no longer negligible, and minimum-weight selection itself (non-tie syndromes) starts to differ from MLD.
+- This is the known degeneracy effect expected for MWPM; no claim of novelty is made, and no literature comparison has been done.
+
+Numerical caveat (found during this analysis): `joint()` in `level5_logical_failure_exact.py` computes probabilities by a float64 Walsh-Hadamard transform with ~1e-17 absolute noise. Total failure rates are accurate (relative difference to a cancellation-free sum of exact counts: 7.6e-9 at p=0.001, <= 1.2e-8 for p<=0.05; the MAJ/MLD ratios agree to 5 digits), but per-syndrome class decisions at small p are not: syndromes with probabilities ~1e-21 are noise. A first analysis pass using `joint()` falsely reported the count rule disagreeing with MLD on 30% of decided ties at p=0.001; with probabilities built from exact counts there are 0 of 412094. The new script uses the count-based probabilities for p<=0.02 and asserts agreement of both methods.
+
+Scope: d=5, code-capacity noise, MAJ-deep evaluated from counts only (not implemented in the library, so not yet verified there). Nothing is claimed for d>=7 or other noise models.
