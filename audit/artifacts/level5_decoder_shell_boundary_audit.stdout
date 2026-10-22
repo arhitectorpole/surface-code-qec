@@ -1,8 +1,8 @@
-d=3 sector=Z checks=6 decoder_min_vs_true_single_defect_mismatches=2 example(check=2 pos=(2, 1) decoder=[2, 2] contract_sides={'T': 1, 'B': 2, 'L': 2, 'R': 2} true=1)
-d=3 sector=X checks=6 decoder_min_vs_true_single_defect_mismatches=2 example(check=1 pos=(1, 2) decoder=[2, 2] contract_sides={'T': 2, 'B': 2, 'L': 1, 'R': 2} true=1)
-d=5 sector=Z checks=20 decoder_min_vs_true_single_defect_mismatches=12 example(check=1 pos=(0, 3) decoder=[1, 5] contract_sides={'T': 2, 'B': 3, 'L': 2, 'R': 4} true=2)
-d=5 sector=X checks=20 decoder_min_vs_true_single_defect_mismatches=12 example(check=1 pos=(1, 2) decoder=[2, 4] contract_sides={'T': 2, 'B': 3, 'L': 1, 'R': 4} true=1)
-d=7 sector=Z checks=42 decoder_min_vs_true_single_defect_mismatches=30 example(check=1 pos=(0, 3) decoder=[1, 7] contract_sides={'T': 2, 'B': 4, 'L': 2, 'R': 4} true=2)
-d=7 sector=X checks=42 decoder_min_vs_true_single_defect_mismatches=30 example(check=1 pos=(1, 2) decoder=[2, 6] contract_sides={'T': 2, 'B': 3, 'L': 1, 'R': 4} true=1)
-TOTAL_MISMATCHES=88
-RESULT: FAIL
+d=3 sector=Z checks=6 decoder_min_vs_true_single_defect_mismatches=0
+d=3 sector=X checks=6 decoder_min_vs_true_single_defect_mismatches=0
+d=5 sector=Z checks=20 decoder_min_vs_true_single_defect_mismatches=0
+d=5 sector=X checks=20 decoder_min_vs_true_single_defect_mismatches=0
+d=7 sector=Z checks=42 decoder_min_vs_true_single_defect_mismatches=0
+d=7 sector=X checks=42 decoder_min_vs_true_single_defect_mismatches=0
+TOTAL_MISMATCHES=0
+RESULT: PASS
