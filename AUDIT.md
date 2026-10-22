@@ -283,3 +283,75 @@ Findings:
 - The library decoder's deterministic tie rule lies within [best, worst] in every check. At d=3 (exact, p=0.01/0.05/0.1) it sits at 97%/88%/91% of the way from best to worst, i.e. close to the worst rule. At d=5 (Monte Carlo, 3000 samples, p=0.03/0.05/0.1) the estimates are 0.0077/0.0257/0.1480 against exact bounds [0.0054, 0.0076], [0.0229, 0.0317], [0.1305, 0.1663]: consistent with the same upper-half behaviour, but the sampling error is too large to place it precisely.
 
 Scope: single error type, code-capacity noise (perfect measurements, no correlated errors). Library-decoder rates at d=5 are Monte Carlo only. The census and rates say nothing about d>=7.
+
+### Level 5 addendum — count-based logical tie rule (`decode_sector_majority`)
+
+**Date:** 2026-10-22
+
+Rule: on a logical tie, choose the class with more distinct minimum-weight witnesses (leading order in p, that class is the more probable one). Equal counts, or truncated enumeration, fall back to the default `decode_sector()` correction. Added as a separate function; the default `decode()` / `decode_sector()` is unchanged.
+
+`tests/level5_tie_rule_majority.py` evaluates the rule exactly (no sampling). Counts N_w(s, c) of weight-w errors per (syndrome, class) come from an integer Walsh-Hadamard transform; rates use the same exact joint distribution as `level5_logical_failure_exact.py`. Output: `audit/artifacts/level5_tie_rule_majority.stdout`.
+
+Failure rate relative to MLD (d=5, Z sector; X identical):
+
+| p | MAJ / MLD | MAJ-deep / MLD | random ties / MLD |
+|---|-----------|----------------|-------------------|
+| 0.001 | 1.0004 | 1.0000 | 1.19 |
+| 0.01 | 1.0040 | 1.0000 | 1.20 |
+| 0.05 | 1.0118 | 1.00001* | 1.19 |
+| 0.10 | 1.0127 | 1.0013 | 1.14 |
+
+d=3: MAJ / MLD = 1.0002 (p=0.001), 1.0018 (p=0.01), 1.0111 (p=0.1).
+
+Findings:
+
+- Leading-order counting recovers almost all of the tie-breaking loss: at d=5, p=0.001 the excess over MLD drops from 19% (fair coin) to 0.04%. The exponent is unchanged (slope 3.00); only the coefficient moves.
+- MAJ leaves 69852 of 481946 d=5 ties undecided (equal counts at the tie weight; 8 of 26 at d=3). There the library falls back to the default deterministic rule. The table above scores those as a fair coin; the exact rate of the library rule with its real fallback (all 69852 default decodes run) is slightly lower: 1.0003x MLD at p=0.001, 1.0030 at 0.01, 1.0089 at 0.05, 1.0102 at 0.1, 1.0113 at 0.15.
+- MAJ-deep (compare N_w, N_{w+1}, ... lexicographically up to weight 14) decides every tie at both d and stays within 0.5% of MLD even at p=0.15. This is a diagnostic of what a more refined rule could reach; it is not implemented in the library (it needs non-minimum witnesses).
+- Library cross-check: the witness counts of `decode_sector_majority` equal N_w exactly on all 26 d=3 ties and on 2000 sampled d=5 ties per sector (0 truncated, 0 class mismatches, 0 count mismatches). This also supports completeness of the witness enumeration on those samples; it is not a proof for all d=5 syndromes. The rate table itself is computed from the counts, not from the library, so it is tied to the library only through this sampled check.
+- Z and X sectors agree to 3e-10 (relative) for MAJ and MAJ-deep at d=3 and d=5. The script asserts the headline ratios (MAJ/MLD <= 1.02, MAJ-deep/MLD <= 1.01, library rule <= 1.02) and was mutation-checked: inverting the rule, disabling it, or miscounting witnesses each turns the result to FAIL.
+
+Scope unchanged: single error type, code-capacity noise, d=3 and d=5 only.
+
+### Level 5 addendum — exhaustive d=5 check of `decode_sector_majority`
+
+**Date:** 2026-10-22
+
+`tests/level5_tie_rule_exhaustive_d5.py Z|X` runs `decode_sector_majority` on **every** d=5 logical tie (481946 per sector, equal to the census) and compares against the independent count reference N_w(s, c) (integer Walsh-Hadamard transform; shares no matching or path enumeration with the decoder). Outputs: `audit/artifacts/level5_tie_rule_exhaustive_d5_{Z,X}.stdout`.
+
+Per tie it requires: no truncation, matchings below `MAX_MATCHINGS`, witness counts equal to N_w, chosen class equal to the larger count (412094 ties), default-decoder correction on equal counts (69852 ties), and a correction that reproduces the syndrome with weight equal to the tie weight.
+
+Result (both sectors): 0 violations, RESULT PASS.
+
+- Truncation: none. The largest number of optimal matchings enumerated on any tie is 1146 (cap 5000); the largest number of minimum-weight errors at a tie is 651 (witness cap 20000, path cap 2000). The "rule falls back silently on truncation" path is therefore never taken at d=5.
+- The exact rate of the library rule reported above (1.0003x MLD at p=0.001 ... 1.0113x at 0.15) now rests on an exhaustive, not sampled, agreement between implementation and reference.
+- Mutation check on the first 3000 ties: inverting the rule gives 2431 class violations; lowering `MAX_MATCHINGS` to 50 is detected as 23 truncations and 2 at-cap cases. Both turn the result to FAIL.
+- `MajorityTieCorrection` gained a `num_matchings` field (additive, default 0).
+
+What this does not establish: agreement with the count reference is not optimality relative to MLD. The rule approximates the more probable class at leading order in p, and the exact-rate comparison shows a remaining gap of up to ~1.1% over MLD at d=5 (about 0.03% at p=0.001). Nothing is claimed for d>=7, noise with measurement errors, or correlated noise.
+
+### Level 5 addendum — where the remaining gap to MLD comes from (d=5)
+
+**Date:** 2026-10-22
+
+`tests/level5_gap_decomposition_d5.py` splits the excess of the count rule (MAJ) over MLD into categories (artifact: `audit/artifacts/level5_gap_decomposition_d5.stdout`). Sector Z shown; sector X gives identical numbers of rule-vs-MLD disagreements.
+
+| p | excess / MLD | non-tie | decided tie | undecided tie (equal counts, fair coin) | decided ties where rule class != MLD class | MAJ-deep / MLD |
+|---|---|---|---|---|---|---|
+| 0.001 | 0.044% | 0 | 0 | 0.044% | 0 | 1.00000 |
+| 0.01 | 0.40% | 0 | 0 | 0.40% | 4 | 1.00000 |
+| 0.1 | 1.27% | 0.075% | 0.044% | 1.15% | 16680 | 1.00129 |
+
+Findings:
+
+- At low p the whole gap is in logical ties where both classes have the same number of minimum-weight errors. At p=0.001, 98% of it comes from the 96 ties of weight 3 (undecided ties by weight: 3:96, 4:1672, 5:10544, 6:27206, 7:24592, 8:5596, 9:142, 10:4). There the count rule carries no information and the next weight order decides.
+- At p<=0.003 the count rule never disagrees with the MLD class on a decided tie. At p=0.01 there are 4 such syndromes (per sector); in the example checked, counts at the tie weight 9 are [64, 63] (nearly equal) and at weight 10 [254, 371], so the next order overturns a one-error lead. Their contribution to the failure rate is below 1e-6 of MLD.
+- Comparing counts lexicographically over successive weights (MAJ-deep) matches MLD very closely. At p=0.05 the displayed failure rates (2.288313e-2 vs 2.288282e-2) imply a relative excess of about 1.4e-5; the gap-decomposition artifact prints 1.00001 at five decimal places. Therefore the earlier claim of <=1e-5 for all p<=0.05 was too strong and is withdrawn. The gap-decomposition script asserts a <=1e-4 bound only for p<=0.02. At p=0.1 the ratio is 1.00129; there errors of higher weight are no longer negligible, and minimum-weight selection itself (non-tie syndromes) starts to differ from MLD.
+- *At p=0.05, the displayed values are rounded; the ratio is approximately 1.000014, not a claim of exact precision beyond the stored output.
+- This is the known degeneracy effect expected for MWPM; no claim of novelty is made. Literature check (2026-10-22, abstract/summary level only, not a full review): choosing the logical class by summing over several minimum-weight matchings is published (M. Lin, "Approximate maximum likelihood decoding with K minimum weight matchings", arXiv:2510.06531: sums exp(-weight) over the first K matchings per logical class, approaches exact MLD as K grows); path-counting edge weights for degeneracy in MWPM are published (Criger & Ashraf, "Multi-path Summation for Decoding 2D Topological Codes", arXiv:1709.02154, Quantum 2018); exact MLD for independent bit-flip/phase-flip noise is polynomial (Bravyi, Suchara, Vargo, arXiv:1405.4883). The count rule here is the leading-order, tie-only special case of that family; the contribution of this work is the exhaustive d=3/d=5 verification and the decomposition of the remaining gap, not the rule.
+
+  Checked against the text of Lin (arXiv:2510.06531, Sec. II B-C): physical errors consistent with the syndrome are in one-to-one correspondence with matchings (Eqs. 15-16); w(M) = sum of edge weights with w(e) = log((1-eps)/eps) (Eqs. 4, 7), so P(eta^M) = exp[-w(M)] up to the constant prod(1-eps_i) (Eq. 9); the logical class probability is approximated by P_l ~ sum over M in Xi_l of exp[-w(M)] (Eq. 18); equal-weight matchings are counted as distinct; in the limit eps -> 0, MWM decoding is the "zeroth order" approximation of MLD and further matchings refine it. The paper does not state a comparison of minimum-weight matching counts per class nor a lexicographic small-p limit. Our statements are derived, not quoted: for i.i.d. flips with probability p, the contribution of an error of weight w is p^w (1-p)^(n-w), so as p -> 0 the class with more weight-w errors wins, ties go to the next weight, and so on, i.e. a lexicographic comparison of (N_w, N_{w+1}, ...). Thus MAJ is Eq. 18 truncated to minimum weight (first order), MAJ-deep is the p -> 0 limit of the full sum, and finite K in Lin's method is a different truncation (K matchings by weight, not all matchings of a given weight order). Equivalence of MAJ-deep with Lin's method at finite p or finite K is not claimed.
+
+Numerical caveat (found during this analysis): `joint()` in `level5_logical_failure_exact.py` computes probabilities by a float64 Walsh-Hadamard transform with ~1e-17 absolute noise. Total failure rates are accurate (relative difference to a cancellation-free sum of exact counts: 7.6e-9 at p=0.001, <= 1.2e-8 for p<=0.05; the MAJ/MLD ratios agree to 5 digits), but per-syndrome class decisions at small p are not: syndromes with probabilities ~1e-21 are noise. A first analysis pass using `joint()` falsely reported the count rule disagreeing with MLD on 30% of decided ties at p=0.001; with probabilities built from exact counts there are 0 of 412094. The new script uses the count-based probabilities for p<=0.02 and asserts agreement of both methods.
+
+Scope: d=5, code-capacity noise, MAJ-deep evaluated from counts only (not implemented in the library, so not yet verified there). Nothing is claimed for d>=7 or other noise models.

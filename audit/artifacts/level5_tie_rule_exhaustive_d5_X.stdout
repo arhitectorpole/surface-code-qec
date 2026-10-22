@@ -1,0 +1,14 @@
+  progress 50000/481946 (72s) violations=0
+  progress 100000/481946 (172s) violations=0
+  progress 150000/481946 (259s) violations=0
+  progress 200000/481946 (384s) violations=0
+  progress 250000/481946 (545s) violations=0
+  progress 300000/481946 (656s) violations=0
+  progress 350000/481946 (801s) violations=0
+  progress 400000/481946 (939s) violations=0
+  progress 450000/481946 (1138s) violations=0
+EXHAUSTIVE d=5 sector=X ties_checked=481946 (census 481946) decided_by_count=412094 equal_count_fallback=69852
+  max_optimal_matchings_enumerated=1146 (cap 5000); max_min_weight_errors_at_tie=651
+  violations: truncated=0, matchings_at_cap=0, counts=0, class=0, decided_flag=0, fallback=0, syndrome=0, weight=0
+TOTAL_FAILURES=0
+RESULT: PASS

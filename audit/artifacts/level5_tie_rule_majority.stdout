@@ -1,0 +1,41 @@
+d=3 sector=Z ties=26 undecided_by_MAJ=8 undecided_by_MAJ-deep=0
+  p        MLD          MW-best      MAJ          MAJ-deep     MW-random    MW-worst
+  0.001   2.091212e-05 2.091212e-05 2.091608e-05 2.091212e-05 2.290705e-05 2.490198e-05   MAJ/MLD=1.0002 deep/MLD=1.0000 random/MLD=1.0954
+  0.003   1.866334e-04 1.866334e-04 1.867385e-04 1.866334e-04 2.044928e-04 2.223522e-04   MAJ/MLD=1.0006 deep/MLD=1.0000 random/MLD=1.0957
+  0.01    2.013172e-03 2.013172e-03 2.016825e-03 2.013172e-03 2.207511e-03 2.401850e-03   MAJ/MLD=1.0018 deep/MLD=1.0000 random/MLD=1.0965
+  0.02    7.714937e-03 7.714937e-03 7.741583e-03 7.714937e-03 8.465095e-03 9.215253e-03   MAJ/MLD=1.0035 deep/MLD=1.0000 random/MLD=1.0972
+  0.03    1.662066e-02 1.662066e-02 1.670253e-02 1.662066e-02 1.823933e-02 1.985801e-02   MAJ/MLD=1.0049 deep/MLD=1.0000 random/MLD=1.0974
+  0.05    4.225568e-02 4.225568e-02 4.256819e-02 4.225568e-02 4.632247e-02 5.038927e-02   MAJ/MLD=1.0074 deep/MLD=1.0000 random/MLD=1.0962
+  0.08    9.435970e-02 9.435970e-02 9.530492e-02 9.435970e-02 1.029932e-01 1.116267e-01   MAJ/MLD=1.0100 deep/MLD=1.0000 random/MLD=1.0915
+  0.1     1.343005e-01 1.343005e-01 1.357935e-01 1.343005e-01 1.459504e-01 1.576004e-01   MAJ/MLD=1.0111 deep/MLD=1.0000 random/MLD=1.0867
+  0.15    2.377766e-01 2.377766e-01 2.406204e-01 2.377766e-01 2.547070e-01 2.716373e-01   MAJ/MLD=1.0120 deep/MLD=1.0000 random/MLD=1.0712
+  LIBRARY-CHECK d=3 sector=Z tie_syndromes_checked=26 truncated=0 equal_count=8 class_mismatches=0 witness_count_mismatches=0
+d=3 sector=X ties=26 undecided_by_MAJ=8 undecided_by_MAJ-deep=0
+  LIBRARY-CHECK d=3 sector=X tie_syndromes_checked=26 truncated=0 equal_count=8 class_mismatches=0 witness_count_mismatches=0
+d=5 sector=Z ties=481946 undecided_by_MAJ=69852 undecided_by_MAJ-deep=0
+  p        MLD          MW-best      MAJ          MAJ-deep     MW-random    MW-worst
+  0.001   2.099950e-07 2.099950e-07 2.100879e-07 2.099950e-07 2.503017e-07 2.906083e-07   MAJ/MLD=1.0004 deep/MLD=1.0000 random/MLD=1.1919
+  0.003   5.667362e-06 5.667362e-06 5.674705e-06 5.667362e-06 6.770238e-06 7.873114e-06   MAJ/MLD=1.0013 deep/MLD=1.0000 random/MLD=1.1946
+  0.01    2.087466e-04 2.087466e-04 2.095746e-04 2.087466e-04 2.507785e-04 2.928103e-04   MAJ/MLD=1.0040 deep/MLD=1.0000 random/MLD=1.2014
+  0.02    1.640413e-03 1.640413e-03 1.651888e-03 1.640413e-03 1.977152e-03 2.313891e-03   MAJ/MLD=1.0070 deep/MLD=1.0000 random/MLD=1.2053
+  0.03    5.380822e-03 5.380823e-03 5.430419e-03 5.380823e-03 6.478988e-03 7.577153e-03   MAJ/MLD=1.0092 deep/MLD=1.0000 random/MLD=1.2041
+  0.05    2.288282e-02 2.288296e-02 2.315187e-02 2.288313e-02 2.726837e-02 3.165378e-02   MAJ/MLD=1.0118 deep/MLD=1.0000 random/MLD=1.1917
+  0.08    7.787882e-02 7.789650e-02 7.886925e-02 7.791093e-02 9.040061e-02 1.029047e-01   MAJ/MLD=1.0127 deep/MLD=1.0004 random/MLD=1.1608
+  0.1     1.303555e-01 1.304532e-01 1.320144e-01 1.305233e-01 1.483765e-01 1.662997e-01   MAJ/MLD=1.0127 deep/MLD=1.0013 random/MLD=1.1382
+  0.15    2.778956e-01 2.787457e-01 2.814297e-01 2.792951e-01 3.022519e-01 3.257581e-01   MAJ/MLD=1.0127 deep/MLD=1.0050 random/MLD=1.0876
+  LIBRARY-CHECK d=5 sector=Z tie_syndromes_checked=2000 truncated=0 equal_count=291 class_mismatches=0 witness_count_mismatches=0
+d=5 sector=X ties=481946 undecided_by_MAJ=69852 undecided_by_MAJ-deep=0
+  LIBRARY-CHECK d=5 sector=X tie_syndromes_checked=2000 truncated=0 equal_count=293 class_mismatches=0 witness_count_mismatches=0
+Z-vs-X max relative difference of MAJ/MAJ-deep failure rates: 3.16e-10
+d=5 library rule (count rule + default fallback), exact: failure / MLD
+  p=0.001  1.0003
+  p=0.003  1.0010
+  p=0.01   1.0030
+  p=0.02   1.0053
+  p=0.03   1.0070
+  p=0.05   1.0089
+  p=0.08   1.0099
+  p=0.1    1.0102
+  p=0.15   1.0113
+TOTAL_FAILURES=0
+RESULT: PASS

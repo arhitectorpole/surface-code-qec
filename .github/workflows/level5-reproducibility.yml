@@ -1,0 +1,72 @@
+name: Level 5 reproducibility
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/level5_*.py"
+      - "tests/_level4_common.py"
+      - "AUDIT.md"
+      - ".github/workflows/level5-reproducibility.yml"
+  push:
+    branches: [work/tie-break-rule]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce-level5:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pinned numerical dependency
+        run: python -m pip install --upgrade pip && python -m pip install numpy==1.26.4
+
+      - name: Record environment
+        run: |
+          mkdir -p reproduction-logs
+          python --version | tee reproduction-logs/environment.txt
+          python -m pip freeze | tee -a reproduction-logs/environment.txt
+          git rev-parse HEAD | tee -a reproduction-logs/environment.txt
+
+      - name: Reproduce count-rule rates and sampled library cross-check
+        run: python tests/level5_tie_rule_majority.py 2>&1 | tee reproduction-logs/level5_tie_rule_majority.stdout
+
+      - name: Exhaustively verify all d=5 Z-sector ties
+        run: python tests/level5_tie_rule_exhaustive_d5.py Z 2>&1 | tee reproduction-logs/level5_tie_rule_exhaustive_d5_Z.stdout
+
+      - name: Exhaustively verify all d=5 X-sector ties
+        run: python tests/level5_tie_rule_exhaustive_d5.py X 2>&1 | tee reproduction-logs/level5_tie_rule_exhaustive_d5_X.stdout
+
+      - name: Reproduce residual-gap decomposition
+        run: python tests/level5_gap_decomposition_d5.py 2>&1 | tee reproduction-logs/level5_gap_decomposition_d5.stdout
+
+      - name: Require PASS markers in all logs
+        if: success()
+        run: |
+          set -euo pipefail
+          for f in reproduction-logs/level5_tie_rule_majority.stdout reproduction-logs/level5_tie_rule_exhaustive_d5_Z.stdout reproduction-logs/level5_tie_rule_exhaustive_d5_X.stdout reproduction-logs/level5_gap_decomposition_d5.stdout; do
+            grep -q "RESULT: PASS" "$f"
+            grep -q "TOTAL_FAILURES=0" "$f"
+          done
+
+      - name: Upload reproducibility logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: level5-reproducibility-logs
+          path: reproduction-logs/
+          if-no-files-found: error
+          retention-days: 90

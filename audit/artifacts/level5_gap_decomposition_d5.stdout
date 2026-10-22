@@ -1,0 +1,11 @@
+d=5 sector Z: p, MLD, total excess/MLD, [non-tie, decided-tie, undecided-tie] excess/MLD, decided ties with rule class != MLD class, deep/MLD
+  p=0.001  MLD=2.1000e-07 excess=0.0442% [0.0000%, 0.0000%, 0.0442%] disagreements=0 deep/MLD=1.00000
+  p=0.003  MLD=5.6674e-06 excess=0.1296% [0.0000%, 0.0000%, 0.1296%] disagreements=0 deep/MLD=1.00000
+  p=0.01   MLD=2.0875e-04 excess=0.3966% [0.0000%, 0.0000%, 0.3966%] disagreements=4 deep/MLD=1.00000
+  p=0.02   MLD=1.6404e-03 excess=0.6995% [0.0000%, 0.0000%, 0.6995%] disagreements=146 deep/MLD=1.00000
+  p=0.05   MLD=2.2883e-02 excess=1.1757% [0.0006%, 0.0006%, 1.1746%] disagreements=4098 deep/MLD=1.00001
+  p=0.1    MLD=1.3036e-01 excess=1.2726% [0.0750%, 0.0437%, 1.1539%] disagreements=16680 deep/MLD=1.00129
+  p=0.001 undecided-tie excess by tie weight (share of MLD): 3:0.0432%, 4:0.0011%, 5:0.0000%, 6:0.0000%, 7:0.0000%, 8:0.0000%, 9:0.0000%, 10:0.0000%
+  undecided ties by tie weight: 3:96, 4:1672, 5:10544, 6:27206, 7:24592, 8:5596, 9:142, 10:4
+TOTAL_FAILURES=0
+RESULT: PASS
