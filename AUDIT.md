@@ -242,3 +242,19 @@ Validation (`tests/level5_decode_combined_vs_oracle.py`, 0 failures):
 - d=5, sampled: 400 random combined syndromes (weight equals BFS-oracle sum); 120 per-sector syndromes with oracle weight <= 3 where the witness set equals the brute-force set of all minimum-weight representatives. No truncation occurred.
 
 Limits: witness completeness is established only for d=3 (all) and for low-weight d=5 samples; logical-tie and degeneracy results for larger weights or d>=7 are not validated. `defect_graph` is still not populated. `DegeneracyInfo.num_optimal_matchings` counts labelled matchings (side-specific boundary choices), not distinct physical corrections.
+
+### Level 5 addendum — exact d=5 logical-tie census
+
+**Date:** 2026-10-22
+
+`tests/level5_logical_tie_census.py` computes, for every sector-local syndrome at d=5, the minimum physical weight in each logical class by BFS over (syndrome, class-bit) space (exact, no pruning). A syndrome is a logical tie iff both classes have the same minimum weight.
+
+Results (identical for Z and X sectors):
+
+- 481,946 of 1,048,576 syndromes (45.96%) are logical ties.
+- No ties exist at minimum weight 0, 1 or 2; ties first appear at weight 3 (160 of 7,734) and dominate at weights 7-10 (e.g. 187,370 of 321,323 at weight 7; 2,046 of 2,047 at weight 10). This is consistent with d=5: two minimum corrections in different classes differ by a logical of weight >= 5, so a tie needs 2w >= 5.
+- Class-gap histogram (|min weight class 0 - min weight class 1|): gap 0: 481,946; 1: 502,154; 2: 60,746; 3: 3,665; 4: 64; 5: 1.
+
+Cross-checks: d=3 against the exhaustive oracle (all syndromes, both sectors): 0 mismatches. d=5 against `decode_sector_with_diagnostics` on 300 random syndromes per sector: 0 mismatches, no truncation.
+
+Scope: the census concerns exact physical minima per logical class and is independent of the decoder. It does not say how often a decoder's single deterministic choice lands in the wrong class under a noise model; that requires a probability model, which is not part of this record.

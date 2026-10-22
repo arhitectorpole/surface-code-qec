@@ -1,0 +1,12 @@
+CROSSCHECK d=3 sector=Z syndromes=64 mismatches=0
+CROSSCHECK d=3 sector=X syndromes=64 mismatches=0
+d=5 sector=Z syndromes=1048576 logical_ties=481946 tie_fraction=0.459620
+  by_min_weight(w: ties/total) 0:0/1, 1:0/41, 2:0/748, 3:160/7734, 4:3830/47759, 5:33212/172178, 6:123056/337480, 7:187370/321323, 8:108088/134899, 9:24184/24366, 10:2046/2047
+  class_gap_histogram(gap:count) 0:481946, 1:502154, 2:60746, 3:3665, 4:64, 5:1
+  decoder_crosscheck samples=300 mismatches=0 truncated=0
+d=5 sector=X syndromes=1048576 logical_ties=481946 tie_fraction=0.459620
+  by_min_weight(w: ties/total) 0:0/1, 1:0/41, 2:0/748, 3:160/7734, 4:3830/47759, 5:33212/172178, 6:123056/337480, 7:187370/321323, 8:108088/134899, 9:24184/24366, 10:2046/2047
+  class_gap_histogram(gap:count) 0:481946, 1:502154, 2:60746, 3:3665, 4:64, 5:1
+  decoder_crosscheck samples=300 mismatches=0 truncated=0
+TOTAL_FAILURES=0
+RESULT: PASS
