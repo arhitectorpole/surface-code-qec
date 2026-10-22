@@ -1,0 +1,17 @@
+LEVEL 4C-A: SHORTEST-PATH COMPLETENESS ATTACK
+graph=independent_candidate_construction_from_GRAPH_CONTRACT
+comparison=G_short_vs_G_all_simple_paths
+simple_path_bound=|V|-1 (exact for simple paths; no heuristic cutoff)
+SECTOR Z: nodes=10 edges=17 shortest_paths=57 all_simple_paths=1889
+  oracle_minima_missing_from_G_short=0
+  oracle_minima_missing_from_G_all=0
+  additional_valid_masks_in_G_all_not_G_short=5300
+SECTOR X: nodes=10 edges=17 shortest_paths=57 all_simple_paths=1889
+  oracle_minima_missing_from_G_short=0
+  oracle_minima_missing_from_G_all=0
+  additional_valid_masks_in_G_all_not_G_short=5300
+TOTAL_SECTORS=2
+TOTAL_ORACLE_MINIMA_MISSING_FROM_G_SHORT=0
+TOTAL_ORACLE_MINIMA_MISSING_FROM_G_ALL=0
+RESULT: PASS
+INTERPRETATION: for d=3, every oracle-minimum physical mask is represented within the shortest-path-generated search space; all-simple-path enumeration adds valid masks but no missing oracle minimum.
