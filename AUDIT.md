@@ -306,9 +306,9 @@ d=3: MAJ / MLD = 1.0002 (p=0.001), 1.0018 (p=0.01), 1.0111 (p=0.1).
 Findings:
 
 - Leading-order counting recovers almost all of the tie-breaking loss: at d=5, p=0.001 the excess over MLD drops from 19% (fair coin) to 0.04%. The exponent is unchanged (slope 3.00); only the coefficient moves.
-- MAJ leaves 69852 of 481946 d=5 ties undecided (equal counts at the tie weight; 8 of 26 at d=3). In those cases the fallback is the default deterministic rule. The table above scores them as a fair coin, so the real library result for those syndromes lies between best and worst.
+- MAJ leaves 69852 of 481946 d=5 ties undecided (equal counts at the tie weight; 8 of 26 at d=3). There the library falls back to the default deterministic rule. The table above scores those as a fair coin; the exact rate of the library rule with its real fallback (all 69852 default decodes run) is slightly lower: 1.0003x MLD at p=0.001, 1.0030 at 0.01, 1.0089 at 0.05, 1.0102 at 0.1, 1.0113 at 0.15.
 - MAJ-deep (compare N_w, N_{w+1}, ... lexicographically up to weight 14) decides every tie at both d and stays within 0.5% of MLD even at p=0.15. This is a diagnostic of what a more refined rule could reach; it is not implemented in the library (it needs non-minimum witnesses).
-- Library cross-check: the witness counts of `decode_sector_majority` equal N_w exactly on all 26 d=3 ties and on 400 sampled d=5 ties per sector (0 truncated, 0 class mismatches, 0 count mismatches). This also supports completeness of the witness enumeration on those samples; it is not a proof for all d=5 syndromes.
-- The exact rate of the library's fallback rule (default decoder) on the equal-count ties was not computed at d=5; the "MAJ" row assumes a fair coin there.
+- Library cross-check: the witness counts of `decode_sector_majority` equal N_w exactly on all 26 d=3 ties and on 2000 sampled d=5 ties per sector (0 truncated, 0 class mismatches, 0 count mismatches). This also supports completeness of the witness enumeration on those samples; it is not a proof for all d=5 syndromes. The rate table itself is computed from the counts, not from the library, so it is tied to the library only through this sampled check.
+- Z and X sectors agree to 3e-10 (relative) for MAJ and MAJ-deep at d=3 and d=5. The script asserts the headline ratios (MAJ/MLD <= 1.02, MAJ-deep/MLD <= 1.01, library rule <= 1.02) and was mutation-checked: inverting the rule, disabling it, or miscounting witnesses each turns the result to FAIL.
 
 Scope unchanged: single error type, code-capacity noise, d=3 and d=5 only.

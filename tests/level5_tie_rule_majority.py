@@ -14,6 +14,9 @@ N_w(s,c) = number of physical errors of weight w with syndrome s and logical
 class c. Exact: coefficient of x^w in prod_q ((1+x) or (1-x)) per Walsh-Hadamard
 character, inverse WHT in int64 (no sampling, no floating point for counts).
 
+Asserted claims: MAJ/MLD <= 1.02, MAJ-deep/MLD <= 1.01, MAJ better than fair-coin ties,
+Z and X sectors agree, and the library rule (with its default fallback) is within 1.02 of MLD.
+
 Library cross-check: decode_sector_majority (src/decoder_lib_v2.py) must pick the
 same class as MAJ on every d=3 syndrome and on sampled d=5 tie syndromes, and its
 witness counts must equal N_w (tests witness completeness).
@@ -24,14 +27,16 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.s0_geometry import build_unrotated_planar_surface_code
-from src.decoder_lib_v2 import build_sector_graph, decode_sector_majority
+from src.decoder_lib_v2 import build_sector_graph, decode_sector, decode_sector_majority
 from tests._level4_common import popcount
 from tests.level5_logical_tie_census import class_distances
 from tests.level5_logical_failure_exact import joint, odd_counts, P_GRID, rates
 
 WMAX = 14
+MAJ_MAX_RATIO = 1.02    # observed max 1.0127 (d=5) / 1.0120 (d=3)
+DEEP_MAX_RATIO = 1.01   # observed max 1.0050
 SEED = 20261026
-SAMPLES_D5 = 400
+SAMPLES_D5 = 2000
 
 
 def ihwt(a):
@@ -106,6 +111,7 @@ def main():
     code3 = build_unrotated_planar_surface_code(3)
     code5 = build_unrotated_planar_surface_code(5)
     rng = random.Random(SEED)
+    zx = {}
     for d, code in ((3, code3), (5, code5)):
         for sector in "ZX":
             m, cols, lm, dist = class_distances(code, sector)
@@ -123,6 +129,18 @@ def main():
                 tot = sum(int(x.sum()) for x in N)
                 if tot != 1 << n:
                     print("  count total mismatch", tot, 1 << n)
+                    fails += 1
+            for p in P_GRID:
+                P = joint(t, p)
+                r, _ = rates(P, dist)
+                maj = failure_rate_choice(P, p1_maj, tie, dist)
+                deep = failure_rate_choice(P, p1_deep, tie, dist)
+                zx.setdefault((d, p), {})[sector] = (maj, deep)
+                # headline claims, asserted (loose margins over the observed values)
+                if not (r["MLD"] <= deep + 1e-15 and maj / r["MLD"] <= MAJ_MAX_RATIO
+                        and deep / r["MLD"] <= DEEP_MAX_RATIO and maj < r["MW-random"]):
+                    print(f"  CLAIM-FAIL d={d} sector={sector} p={p}: MAJ/MLD={maj / r['MLD']:.4f} "
+                          f"deep/MLD={deep / r['MLD']:.4f}")
                     fails += 1
             if sector == "Z":
                 print("  p        MLD          MW-best      MAJ          MAJ-deep     MW-random    MW-worst")
@@ -163,6 +181,28 @@ def main():
             print(f"  LIBRARY-CHECK d={d} sector={sector} tie_syndromes_checked={len(syns)} "
                   f"truncated={trunc} equal_count={undec} class_mismatches={bad} witness_count_mismatches={cnt_bad}")
             fails += bad + cnt_bad
+    zx_worst = max(abs(v["Z"][i] - v["X"][i]) / v["Z"][i] for v in zx.values() for i in (0, 1))
+    print(f"Z-vs-X max relative difference of MAJ/MAJ-deep failure rates: {zx_worst:.2e}")
+    fails += int(zx_worst > 1e-8)
+
+    # Exact rate of the LIBRARY rule at d=5 (Z): decided ties by count, equal-count
+    # ties by the default decode_sector() class (not a fair coin).
+    m, cols, lm, dist = class_distances(code5, "Z")
+    t = odd_counts(m, cols, lm)
+    N = count_tables(t, len(code5["data"]), WMAX)
+    tie = dist[:, 0] == dist[:, 1]
+    p1, dec = maj_prob(N, dist, deep=False)
+    g5 = build_sector_graph(5, "Z")
+    choice = p1.copy()
+    for s in np.flatnonzero(tie & ~dec):
+        choice[s] = popcount(decode_sector(int(s), g5).bitmask & lm) & 1
+    print("d=5 library rule (count rule + default fallback), exact: failure / MLD")
+    for p in P_GRID:
+        P = joint(t, p)
+        r, _ = rates(P, dist)
+        ratio = failure_rate_choice(P, choice, tie, dist) / r["MLD"]
+        print(f"  p={p:<6} {ratio:.4f}")
+        fails += int(ratio > MAJ_MAX_RATIO or ratio < 1 - 1e-12)
     print(f"TOTAL_FAILURES={fails}")
     print("RESULT: " + ("PASS" if fails == 0 else "FAIL"))
     return fails
