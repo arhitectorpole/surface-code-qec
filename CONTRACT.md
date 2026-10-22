@@ -86,11 +86,7 @@ The test reports the current coordinate boundary formula as a diagnostic but doe
 
 ### Validation gate
 
-The following changes are blocked until Level 4A-v3 and its stdout have been reviewed:
-
-- no boundary-semantic patch to `build_decoding_graph()`;
-- no population of `defect_graph`;
-- no MWPM implementation based on unvalidated boundary edges.
+Historical gate (lifted 2026-10-22; research project, no production deployment). Earlier this blocked, until Level 4A-v3 was reviewed: boundary-semantic patches to `build_decoding_graph()`, population of `defect_graph`, and any MWPM implementation. These are no longer blocked; validate changes against the independent oracles instead.
 
 ### Next gates
 

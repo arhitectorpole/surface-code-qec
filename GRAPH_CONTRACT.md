@@ -236,12 +236,10 @@ Level 4A-v4 and Level 4B-v2 are relied upon as prior audit/conversation evidence
 
 ## 10. Relation to Production
 
-`src/decoder_lib_v2.py` and `src/s0_geometry.py` remain frozen on this experimental branch.
-
-A future production transfer must be a separate reviewed change, followed by validation of the transferred implementation against the same independent physical oracle and provenance requirements.
+The freeze on `src/decoder_lib_v2.py` and `src/s0_geometry.py` has been lifted (2026-10-22; research project, no production deployment). The graph may be transferred into code directly; the transferred implementation should still be validated against the same independent physical oracle (see `tests/level5_*`).
 
 ---
 
 **Document version:** 1.3  
 **Last updated:** 2026-09-07  
-**Current status:** Level 4C PASS + Level 4C-A PASS for d=3 sector-local spaces; production remains frozen.
+**Current status:** Level 4C PASS + Level 4C-A PASS for d=3 sector-local spaces; process freeze on source files lifted 2026-10-22.
