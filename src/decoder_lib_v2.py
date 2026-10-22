@@ -173,6 +173,169 @@ def audit_geometry(graph: DecodingGraph) -> Dict[str, object]:
         and all(bool(node.weight_to_boundary) for node in graph.boundary_nodes.values()),
     }
 
+# ---------------------------------------------------------------------------
+# Sector-local exact MWPM (Level 5). Follows GRAPH_CONTRACT.md:
+#   * one graph per CSS sector, syndrome is sector-local (bit i = i-th check
+#     of that sector in S0 order);
+#   * check-check edge iff the two checks share exactly one data qubit;
+#   * boundary edge from a check to side T/B/L/R for every data qubit that
+#     touches exactly one check of the sector and lies on that side
+#     (corner qubits give one edge per side, same physical mask);
+#   * every edge costs 1 and carries exactly one data qubit;
+#   * exact minimum-cost matching (bitmask DP over defects), no pruning;
+#   * deterministic ties: first-found in a fixed order (boundary before pairs,
+#     partners ascending) and lexicographically smallest edge sequence by
+#     data-qubit index among shortest paths.
+# Output weight equals the exact physical minimum (see AUDIT.md, Level 5).
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class SectorGraph:
+    d: int
+    sector: str
+    n_data: int
+    n_checks: int
+    check_masks: Tuple[int, ...]
+    # adjacency[node] -> sorted list of (qubit, neighbour); nodes are
+    # ("c", i) or ("b", side)
+    adjacency: Dict[Tuple[str, object], Tuple[Tuple[int, Tuple[str, object]], ...]]
+
+@dataclass(frozen=True)
+class SectorCorrection:
+    bitmask: int
+    weight: int
+    syndrome_reproduced: int
+    matching_cost: int
+
+def build_sector_graph(d: int, sector: str) -> SectorGraph:
+    if d < 3 or d % 2 == 0:
+        raise ValueError("distance must be odd and >= 3")
+    if sector not in ("Z", "X"):
+        raise ValueError("sector must be 'Z' or 'X'")
+    from .s0_geometry import build_unrotated_planar_surface_code
+    code = build_unrotated_planar_surface_code(d)
+    data = code["data"]
+    checks = code["z_checks"] if sector == "Z" else code["x_checks"]
+    qsets = [set(qs) for _, qs in checks]
+    masks = tuple(sum(1 << q for q in qs) for qs in qsets)
+    max_coord = 2 * d - 2
+    adj: Dict[Tuple[str, object], List[Tuple[int, Tuple[str, object]]]] = {
+        **{("c", i): [] for i in range(len(checks))},
+        **{("b", side): [] for side in "TBLR"},
+    }
+    for i in range(len(checks)):
+        for j in range(i + 1, len(checks)):
+            common = qsets[i] & qsets[j]
+            if len(common) == 1:
+                q = next(iter(common))
+                adj[("c", i)].append((q, ("c", j)))
+                adj[("c", j)].append((q, ("c", i)))
+    degree = [0] * len(data)
+    for qs in qsets:
+        for q in qs:
+            degree[q] += 1
+    for i, qs in enumerate(qsets):
+        for q in qs:
+            if degree[q] != 1:
+                continue
+            x, y = data[q]
+            sides = []
+            if x == 0:
+                sides.append("L")
+            if x == max_coord:
+                sides.append("R")
+            if y == 0:
+                sides.append("T")
+            if y == max_coord:
+                sides.append("B")
+            for side in sides:
+                adj[("c", i)].append((q, ("b", side)))
+                adj[("b", side)].append((q, ("c", i)))
+    frozen = {k: tuple(sorted(v, key=lambda t: (t[0], str(t[1])))) for k, v in adj.items()}
+    return SectorGraph(d, sector, len(data), len(checks), masks, frozen)
+
+def _bfs_dist(graph: SectorGraph, src):
+    from collections import deque
+    dist = {src: 0}
+    queue = deque([src])
+    while queue:
+        u = queue.popleft()
+        for _, v in graph.adjacency[u]:
+            if v not in dist:
+                dist[v] = dist[u] + 1
+                queue.append(v)
+    return dist
+
+def _canonical_path_mask(graph: SectorGraph, src, dst_dist) -> int:
+    """Lexicographically smallest (by qubit index) shortest path from src to
+    the target whose BFS distances are dst_dist; returns XOR of its qubits."""
+    mask = 0
+    u = src
+    while dst_dist[u] > 0:
+        for q, v in graph.adjacency[u]:
+            if dst_dist.get(v) == dst_dist[u] - 1:
+                mask ^= 1 << q
+                u = v
+                break
+    return mask
+
+def syndrome_of_sector_mask(graph: SectorGraph, mask: int) -> int:
+    syn = 0
+    for i, cm in enumerate(graph.check_masks):
+        if popcount(mask & cm) & 1:
+            syn |= 1 << i
+    return syn
+
+def decode_sector(syndrome: int, graph: SectorGraph) -> SectorCorrection:
+    """Exact MWPM decode of one CSS sector. Raises on out-of-range syndrome."""
+    if syndrome < 0 or syndrome >= (1 << graph.n_checks):
+        raise ValueError("syndrome outside sector range")
+    defects = [i for i in range(graph.n_checks) if (syndrome >> i) & 1]
+    if not defects:
+        return SectorCorrection(0, 0, 0, 0)
+    from_check = {i: _bfs_dist(graph, ("c", i)) for i in range(graph.n_checks)}
+    dpair = {(a, b): from_check[a][("c", b)] for a in defects for b in defects}
+    dbound = {}
+    for a in defects:
+        best_side = min("TBLR", key=lambda s: (from_check[a][("b", s)], s))
+        dbound[a] = (from_check[a][("b", best_side)], best_side)
+    memo: Dict[int, Tuple[int, tuple]] = {}
+    full = (1 << len(defects)) - 1
+
+    def solve(rem: int):
+        if rem == 0:
+            return 0, ()
+        if rem in memo:
+            return memo[rem]
+        k = (rem & -rem).bit_length() - 1
+        rest = rem & ~(1 << k)
+        a = defects[k]
+        c, plan = solve(rest)
+        best = (dbound[a][0] + c, (("b", a, dbound[a][1]),) + plan)
+        r = rest
+        while r:
+            m = (r & -r).bit_length() - 1
+            r &= r - 1
+            c2, plan2 = solve(rest & ~(1 << m))
+            cand = dpair[(a, defects[m])] + c2
+            if cand < best[0]:
+                best = (cand, (("p", a, defects[m]),) + plan2)
+        memo[rem] = best
+        return best
+
+    cost, plan = solve(full)
+    mask = 0
+    for item in plan:
+        if item[0] == "b":
+            _, a, side = item
+            target = _bfs_dist(graph, ("b", side))
+            mask ^= _canonical_path_mask(graph, ("c", a), target)
+        else:
+            _, a, b = item
+            target = _bfs_dist(graph, ("c", b))
+            mask ^= _canonical_path_mask(graph, ("c", a), target)
+    return SectorCorrection(mask, popcount(mask), syndrome_of_sector_mask(graph, mask), cost)
+
 def decode(syndrome: int, graph: DecodingGraph) -> DecodeResult:
     if syndrome < 0 or syndrome >= (1 << graph.n_checks):
         raise ValueError("syndrome outside graph range")

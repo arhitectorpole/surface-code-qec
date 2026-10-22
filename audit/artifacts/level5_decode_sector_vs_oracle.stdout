@@ -1,0 +1,6 @@
+d=3 sector=Z exhaustive_syndromes=64
+d=3 sector=X exhaustive_syndromes=64
+d=5 sector=Z sampled_syndromes=1500
+d=5 sector=X sampled_syndromes=1500
+TOTAL_CASES=3128 TOTAL_FAILURES=0
+RESULT: PASS
