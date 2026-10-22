@@ -4,11 +4,11 @@
 
 **Date:** 2026-09-07  
 **Branch:** `experiment/level4c-contract-v1`  
-**Current frontier:** Level 4C + Level 4C-A d=3 graph-contract validation — PASS on sector-local syndrome spaces; production transfer remains blocked pending expert review
+**Current frontier:** Level 4C + Level 4C-A d=3 graph-contract validation — PASS on sector-local syndrome spaces; production-transfer gate lifted (research project, see Change-control rule)
 
 This document records the methodological state of the new `decoder_lib_v2` baseline. The v2 implementation is explicitly a new baseline, not a reconstruction of the unavailable S1 decoder.
 
-The production implementation remains frozen at the geometry stage while physical facts are established independently from S0 incidence.
+`src/decoder_lib_v2.py` was frozen at the geometry stage while physical facts were established independently from S0 incidence. That freeze has been lifted; see the Change-control rule.
 
 ## Evolution of the Level 4 experiment
 
@@ -143,15 +143,13 @@ Accordingly, H4 is treated as a derived consistency consequence, not as an indep
 
 ## Change-control rule
 
-Do **not** patch `build_decoding_graph()` merely to fit Level 4A-v4, Level 4B-v2, Level 4C, or Level 4C-A observations.
+**Lifted (2026-10-22):** this is a research project with no production deployment under consideration. The repository owner has removed the process gates that earlier versions of this rule imposed: the freeze on `src/decoder_lib_v2.py` and `src/s0_geometry.py`, the prohibition on populating `defect_graph`, the prohibition on patching `build_decoding_graph()` to match validated observations, and the expert-review requirement before transferring the validated graph into code. Any of these may now be changed directly, with the change recorded here and checked against the independent oracles.
 
-Do **not** populate `defect_graph` in production until the validated graph construction is deliberately transferred after expert review.
+The following rules are scientific-integrity rules rather than process gates, and remain in force because they protect the meaning of the results:
 
 Do **not** equate coordinate-side metadata with graph-boundary identity.
 
 Do **not** use MWPM results to define or validate the physical oracle.
-
-`src/decoder_lib_v2.py` and `src/s0_geometry.py` remain frozen during this experimental validation branch.
 
 ## Traceability
 

@@ -104,5 +104,5 @@ Thus:
 4C-A             PASS  (d=3 shortest-path completeness)
 4D               PASS  (d=3 MWPM-cost admissibility)
 d > 3            UNTESTED
-production MWPM  BLOCKED pending review and higher-distance validation
+production MWPM  gate lifted 2026-10-22 (research project); higher-distance validation still open
 ```
