@@ -133,14 +133,14 @@ def build_decoding_graph(d: int) -> DecodingGraph:
         i, j = stab.position
         if stab.check_type is CheckType.Z:
             boundary_nodes["top_Z"].adjacent_defects.add(cid)
-            boundary_nodes["top_Z"].weight_to_boundary[cid] = i // 2 + 1
+            boundary_nodes["top_Z"].weight_to_boundary[cid] = j // 2 + 1
             boundary_nodes["bottom_Z"].adjacent_defects.add(cid)
-            boundary_nodes["bottom_Z"].weight_to_boundary[cid] = (max_coord - i) // 2 + 1
+            boundary_nodes["bottom_Z"].weight_to_boundary[cid] = (max_coord - j) // 2 + 1
         else:
             boundary_nodes["left_X"].adjacent_defects.add(cid)
-            boundary_nodes["left_X"].weight_to_boundary[cid] = j // 2 + 1
+            boundary_nodes["left_X"].weight_to_boundary[cid] = i // 2 + 1
             boundary_nodes["right_X"].adjacent_defects.add(cid)
-            boundary_nodes["right_X"].weight_to_boundary[cid] = (max_coord - j) // 2 + 1
+            boundary_nodes["right_X"].weight_to_boundary[cid] = (max_coord - i) // 2 + 1
 
     return DecodingGraph(d, len(data), len(stabilizers), list(range(len(data))),
                          stabilizers, check_masks, logZ_set, logZ_mask,

@@ -1,0 +1,8 @@
+d=3 sector=Z checks=6 decoder_min_vs_true_single_defect_mismatches=0
+d=3 sector=X checks=6 decoder_min_vs_true_single_defect_mismatches=0
+d=5 sector=Z checks=20 decoder_min_vs_true_single_defect_mismatches=0
+d=5 sector=X checks=20 decoder_min_vs_true_single_defect_mismatches=0
+d=7 sector=Z checks=42 decoder_min_vs_true_single_defect_mismatches=0
+d=7 sector=X checks=42 decoder_min_vs_true_single_defect_mismatches=0
+TOTAL_MISMATCHES=0
+RESULT: PASS
