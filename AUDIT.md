@@ -214,3 +214,13 @@ Not established:
 - Per-qubit boundary-side assignment: the shell still hard-codes top/bottom for Z and left/right for X, whereas the Graph Contract assigns sides per qubit.
 - A single combined syndrome over both sectors versus the per-sector syndromes used in all tests.
 - Anything for d>=7 beyond single-defect boundary weights.
+
+### Level 5 addendum — sector-local decoder (`decode_sector`)
+
+**Date:** 2026-10-22
+
+`src/decoder_lib_v2.py` gains `build_sector_graph()` and `decode_sector()`: an exact sector-local MWPM decoder following `GRAPH_CONTRACT.md` (per-qubit boundary sides, unit-cost edges, exact bitmask-DP matching, deterministic ties by fixed iteration order and lexicographically smallest shortest path by data-qubit index).
+
+Validation (`tests/level5_decode_sector_vs_oracle.py`): d=3 all 64 syndromes per sector against the exhaustive oracle, and 1500 random d=5 syndromes per sector (errors of weight <= 6) against the BFS oracle: 3128 cases, 0 failures; syndrome reproduced, physical weight equals the oracle minimum, decoding is deterministic.
+
+Limits: `defect_graph` is still not populated; the combined-syndrome `decode()` and `decode_with_diagnostics()` are still `NotImplementedError`; logical-sector and degeneracy fields are not computed; d=5 is sampled, not exhaustive (DP is exponential in defect count); no d>=7 validation. The repository owner has stated that this is a research project with no production deployment under consideration, so the change-control rule's expert-review gate for production transfer is not treated as blocking; the decoder is merged as research code.
