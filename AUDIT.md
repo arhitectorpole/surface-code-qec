@@ -222,3 +222,23 @@ Not established:
 Validation (`tests/level5_decode_sector_vs_oracle.py`): d=3 all 64 syndromes per sector against the exhaustive oracle, and 1500 random d=5 syndromes per sector (errors of weight <= 6) against the BFS oracle: 3128 cases, 0 failures; syndrome reproduced, physical weight equals the oracle minimum, decoding is deterministic.
 
 Limits: `defect_graph` is still not populated; the combined-syndrome `decode()` and `decode_with_diagnostics()` are still `NotImplementedError`; logical-sector and degeneracy fields are not computed; d=5 is sampled, not exhaustive (DP is exponential in defect count); no d>=7 validation. The repository owner has stated that this is a research project with no production deployment under consideration, so the change-control rule's expert-review gate for production transfer is not treated as blocking; the decoder is merged as research code.
+
+### Level 5 addendum — combined `decode()` and `decode_with_diagnostics()`
+
+**Date:** 2026-10-22
+
+`decode()` and `decode_with_diagnostics()` are implemented on top of `decode_sector`. The combined syndrome is split into its Z-check bits (low `n_z` bits) and X-check bits; each sector is decoded exactly and independently.
+
+Conventions:
+
+- `Correction.bitmask` packs both corrections: bits `[0,n)` are the X-type flips that fix the Z-check syndrome; bits `[n,2n)` are the Z-type flips that fix the X-check syndrome. `weight` is the total physical weight.
+- `logical_sector = popcount(bitmask & logZ_mask) % 2` exactly as in `CONTRACT.md` (only the low `n` bits overlap `logZ_mask`). The X-sector's analogue (data qubits with `i == 0`) is reported in `solver_info["x_sector_logical_class"]`.
+- `decode()` leaves degeneracy fields unknown; `decode_with_diagnostics()` enumerates optimal matchings and their shortest-path witnesses. Counts and witness sets are capped (`MAX_MATCHINGS`, `MAX_WITNESS_MASKS`, `MAX_PATHS_PER_CONNECTION`) and `solver_info["diagnostics_truncated"]` reports when a cap was hit.
+
+Validation (`tests/level5_decode_combined_vs_oracle.py`, 0 failures):
+
+- d=3, exhaustive: all 4096 combined syndromes — syndrome reproduced, weight equals oracle Z + oracle X, deterministic.
+- d=3, exhaustive: for all 64 syndromes in each sector, the witness set equals the exhaustive oracle's set of ALL minimum-weight physical representatives, and the logical classes agree. This establishes, at d=3, that the matching-derived witnesses are complete.
+- d=5, sampled: 400 random combined syndromes (weight equals BFS-oracle sum); 120 per-sector syndromes with oracle weight <= 3 where the witness set equals the brute-force set of all minimum-weight representatives. No truncation occurred.
+
+Limits: witness completeness is established only for d=3 (all) and for low-weight d=5 samples; logical-tie and degeneracy results for larger weights or d>=7 are not validated. `defect_graph` is still not populated. `DegeneracyInfo.num_optimal_matchings` counts labelled matchings (side-specific boundary choices), not distinct physical corrections.
