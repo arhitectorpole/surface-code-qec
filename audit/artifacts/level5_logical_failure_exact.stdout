@@ -1,0 +1,42 @@
+CROSSCHECK d=3 sector=Z p=0.01 max_abs_diff_vs_bruteforce=4.44e-16
+CROSSCHECK d=3 sector=Z p=0.1 max_abs_diff_vs_bruteforce=8.33e-17
+CROSSCHECK d=3 sector=X p=0.01 max_abs_diff_vs_bruteforce=3.33e-16
+CROSSCHECK d=3 sector=X p=0.1 max_abs_diff_vs_bruteforce=8.33e-17
+d=3 Z-vs-X max_abs_difference_in_failure_rates=5.55e-17
+d=3 exact logical failure rate (sector Z; X identical)
+  p       MLD         MW-best     MW-random   MW-worst
+  0.001  2.091212e-05 2.091212e-05 2.290705e-05 2.490198e-05
+  0.003  1.866334e-04 1.866334e-04 2.044928e-04 2.223522e-04
+  0.01   2.013172e-03 2.013172e-03 2.207511e-03 2.401850e-03
+  0.02   7.714937e-03 7.714937e-03 8.465095e-03 9.215253e-03
+  0.03   1.662066e-02 1.662066e-02 1.823933e-02 1.985801e-02
+  0.05   4.225568e-02 4.225568e-02 4.632247e-02 5.038927e-02
+  0.08   9.435970e-02 9.435970e-02 1.029932e-01 1.116267e-01
+  0.1    1.343005e-01 1.343005e-01 1.459504e-01 1.576004e-01
+  0.15   2.377766e-01 2.377766e-01 2.547070e-01 2.716373e-01
+  low-p log-log slope (MLD, p=0.001..0.003): 1.99
+  low-p log-log slope (MW-random, p=0.001..0.003): 1.99
+  low-p log-log slope (MW-worst, p=0.001..0.003): 1.99
+d=5 Z-vs-X max_abs_difference_in_failure_rates=3.81e-16
+d=5 exact logical failure rate (sector Z; X identical)
+  p       MLD         MW-best     MW-random   MW-worst
+  0.001  2.099950e-07 2.099950e-07 2.503017e-07 2.906083e-07
+  0.003  5.667362e-06 5.667362e-06 6.770238e-06 7.873114e-06
+  0.01   2.087466e-04 2.087466e-04 2.507785e-04 2.928103e-04
+  0.02   1.640413e-03 1.640413e-03 1.977152e-03 2.313891e-03
+  0.03   5.380822e-03 5.380823e-03 6.478988e-03 7.577153e-03
+  0.05   2.288282e-02 2.288296e-02 2.726837e-02 3.165378e-02
+  0.08   7.787882e-02 7.789650e-02 9.040061e-02 1.029047e-01
+  0.1    1.303555e-01 1.304532e-01 1.483765e-01 1.662997e-01
+  0.15   2.778956e-01 2.787457e-01 3.022519e-01 3.257581e-01
+  low-p log-log slope (MLD, p=0.001..0.003): 3.00
+  low-p log-log slope (MW-random, p=0.001..0.003): 3.00
+  low-p log-log slope (MW-worst, p=0.001..0.003): 3.00
+d=3 library decoder exact failure p=0.01: 2.389282e-03 within[best,worst]=[2.013172e-03,2.401850e-03] True
+d=3 library decoder exact failure p=0.05: 4.938454e-02 within[best,worst]=[4.225568e-02,5.038927e-02] True
+d=3 library decoder exact failure p=0.1: 1.531811e-01 within[best,worst]=[1.343005e-01,1.576004e-01] True
+d=5 library decoder Monte Carlo p=0.03: 0.0077 +- 0.0016 (n=3000); exact bounds [0.0054, 0.0076], MLD=0.0054 within=True
+d=5 library decoder Monte Carlo p=0.05: 0.0257 +- 0.0029 (n=3000); exact bounds [0.0229, 0.0317], MLD=0.0229 within=True
+d=5 library decoder Monte Carlo p=0.1: 0.1480 +- 0.0065 (n=3000); exact bounds [0.1305, 0.1663], MLD=0.1304 within=True
+TOTAL_FAILURES=0
+RESULT: PASS
