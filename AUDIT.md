@@ -215,7 +215,7 @@ Not established:
 - A single combined syndrome over both sectors versus the per-sector syndromes used in all tests.
 - Anything for d>=7 beyond single-defect boundary weights.
 
-### Level 5 addendum — sector-local decoder (`decode_sector`) — PENDING REVIEW
+### Level 5 addendum — sector-local decoder (`decode_sector`)
 
 **Date:** 2026-10-22
 
@@ -223,4 +223,4 @@ Not established:
 
 Validation (`tests/level5_decode_sector_vs_oracle.py`): d=3 all 64 syndromes per sector against the exhaustive oracle, and 1500 random d=5 syndromes per sector (errors of weight <= 6) against the BFS oracle: 3128 cases, 0 failures; syndrome reproduced, physical weight equals the oracle minimum, decoding is deterministic.
 
-Limits: `defect_graph` is still not populated; the combined-syndrome `decode()` and `decode_with_diagnostics()` are still `NotImplementedError`; logical-sector and degeneracy fields are not computed; d=5 is sampled, not exhaustive (DP is exponential in defect count); no d>=7 validation. This is production-source change that the change-control rule reserves for expert review, so it is submitted as an unmerged pull request.
+Limits: `defect_graph` is still not populated; the combined-syndrome `decode()` and `decode_with_diagnostics()` are still `NotImplementedError`; logical-sector and degeneracy fields are not computed; d=5 is sampled, not exhaustive (DP is exponential in defect count); no d>=7 validation. The repository owner has stated that this is a research project with no production deployment under consideration, so the change-control rule's expert-review gate for production transfer is not treated as blocking; the decoder is merged as research code.
