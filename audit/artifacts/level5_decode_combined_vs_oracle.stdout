@@ -1,0 +1,4 @@
+d=3 sector_witness_set_checks=128 combined_syndromes=4096
+d=5 combined_samples=400 brute_force_witness_set_checks=120 truncated=0
+TOTAL_FAILURES=0
+RESULT: PASS

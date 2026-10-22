@@ -10,10 +10,10 @@ from typing import Dict, List, Optional, Set, Tuple
 
 IMPLEMENTATION_RECORD = {
     "version": "v2.0",
-    "status": "geometry-stage",
+    "status": "research-mwpm-d3-d5-validated",
     "code_type": "unrotated_planar_surface_code",
     "geometry_source": "s0_geometry.py (canonical)",
-    "mwpm_backend": "TBD - detected at runtime",
+    "mwpm_backend": "exact_bitmask_dp",
     "tie_policy": "lexicographic_edge_sort",
     "boundary_handling": "virtual_boundary_nodes_physical_weight",
     "created": "2026-09-05",
@@ -336,15 +336,204 @@ def decode_sector(syndrome: int, graph: SectorGraph) -> SectorCorrection:
             mask ^= _canonical_path_mask(graph, ("c", a), target)
     return SectorCorrection(mask, popcount(mask), syndrome_of_sector_mask(graph, mask), cost)
 
-def decode(syndrome: int, graph: DecodingGraph) -> DecodeResult:
+# ---------------------------------------------------------------------------
+# Degeneracy diagnostics (sector-local) and combined decode().
+# Witness sets are derived from minimum-cost matchings x shortest-path choices.
+# They are physical minimum-weight witnesses (cost == oracle minimum, see
+# AUDIT.md Level 5) but are NOT proven to be ALL minimum-weight corrections
+# beyond the tested cases; truncation flags report when caps were hit.
+# ---------------------------------------------------------------------------
+
+MAX_MATCHINGS = 5000
+MAX_WITNESS_MASKS = 20000
+MAX_PATHS_PER_CONNECTION = 2000
+
+@dataclass(frozen=True)
+class SectorDiagnostics:
+    num_optimal_matchings: int
+    matchings_truncated: bool
+    witness_masks: frozenset
+    witnesses_truncated: bool
+    logical_classes: frozenset
+    is_logical_tie: bool
+
+def _all_shortest_path_masks(graph: SectorGraph, src, target_dist, cap: int):
+    """Masks (XOR of qubits) of every shortest path src -> target, deduplicated."""
+    out = set()
+    stack = [(src, 0)]
+    while stack and len(out) < cap:
+        u, m = stack.pop()
+        if target_dist[u] == 0:
+            out.add(m)
+            continue
+        for q, v in graph.adjacency[u]:
+            if target_dist.get(v) == target_dist[u] - 1:
+                stack.append((v, m ^ (1 << q)))
+    return out
+
+def decode_sector_with_diagnostics(syndrome: int, graph: SectorGraph, logical_mask: int):
+    """Exact decode plus enumeration of optimal matchings and their witnesses.
+
+    logical_mask: data-qubit mask whose overlap parity defines the logical class.
+    """
+    correction = decode_sector(syndrome, graph)
+    defects = [i for i in range(graph.n_checks) if (syndrome >> i) & 1]
+    if not defects:
+        return correction, SectorDiagnostics(1, False, frozenset({0}), False, frozenset({0}), False)
+    from_check = {i: _bfs_dist(graph, ("c", i)) for i in range(graph.n_checks)}
+    side_dist = {s: _bfs_dist(graph, ("b", s)) for s in "TBLR"}
+    memo: Dict[int, int] = {}
+
+    def cost(rem: int) -> int:
+        if rem == 0:
+            return 0
+        if rem in memo:
+            return memo[rem]
+        k = (rem & -rem).bit_length() - 1
+        rest = rem & ~(1 << k)
+        a = defects[k]
+        best = min(from_check[a][("b", s)] for s in "TBLR") + cost(rest)
+        r = rest
+        while r:
+            m = (r & -r).bit_length() - 1
+            r &= r - 1
+            best = min(best, from_check[a][("c", defects[m])] + cost(rest & ~(1 << m)))
+        memo[rem] = best
+        return best
+
+    plans = []
+    truncated = False
+
+    def enumerate_plans(rem: int, acc: tuple):
+        nonlocal truncated
+        if len(plans) >= MAX_MATCHINGS:
+            truncated = True
+            return
+        if rem == 0:
+            plans.append(acc)
+            return
+        k = (rem & -rem).bit_length() - 1
+        rest = rem & ~(1 << k)
+        a = defects[k]
+        total = cost(rem)
+        for s in "TBLR":
+            if from_check[a][("b", s)] + cost(rest) == total:
+                enumerate_plans(rest, acc + (("b", a, s),))
+        r = rest
+        while r:
+            m = (r & -r).bit_length() - 1
+            r &= r - 1
+            if from_check[a][("c", defects[m])] + cost(rest & ~(1 << m)) == total:
+                enumerate_plans(rest & ~(1 << m), acc + (("p", a, defects[m]),))
+
+    enumerate_plans((1 << len(defects)) - 1, ())
+
+    conn_cache: Dict[tuple, set] = {}
+    def conn_masks(item):
+        if item not in conn_cache:
+            if item[0] == "b":
+                conn_cache[item] = _all_shortest_path_masks(
+                    graph, ("c", item[1]), side_dist[item[2]], MAX_PATHS_PER_CONNECTION)
+            else:
+                conn_cache[item] = _all_shortest_path_masks(
+                    graph, ("c", item[1]), from_check[item[2]], MAX_PATHS_PER_CONNECTION)
+        return conn_cache[item]
+
+    witnesses = set()
+    wtrunc = False
+    for plan in plans:
+        acc = {0}
+        for item in plan:
+            acc = {x ^ y for x in acc for y in conn_masks(item)}
+            if len(acc) > MAX_WITNESS_MASKS:
+                wtrunc = True
+                acc = set(list(acc)[:MAX_WITNESS_MASKS])
+        witnesses |= acc
+        if len(witnesses) >= MAX_WITNESS_MASKS:
+            wtrunc = True
+            break
+    if any(len(v) >= MAX_PATHS_PER_CONNECTION for v in conn_cache.values()):
+        wtrunc = True
+    # Keep only valid minimum-weight witnesses (cancellation can only lower weight).
+    best_w = min(popcount(w) for w in witnesses | {correction.bitmask})
+    witnesses = {w for w in witnesses | {correction.bitmask}
+                 if syndrome_of_sector_mask(graph, w) == syndrome and popcount(w) == best_w}
+    classes = frozenset(popcount(w & logical_mask) & 1 for w in witnesses)
+    return correction, SectorDiagnostics(
+        len(plans), truncated, frozenset(witnesses), wtrunc, classes, len(classes) > 1)
+
+_SECTOR_GRAPH_CACHE: Dict[Tuple[int, str], SectorGraph] = {}
+
+def _sector_graph(d: int, sector: str) -> SectorGraph:
+    key = (d, sector)
+    if key not in _SECTOR_GRAPH_CACHE:
+        _SECTOR_GRAPH_CACHE[key] = build_sector_graph(d, sector)
+    return _SECTOR_GRAPH_CACHE[key]
+
+def _split_syndrome(syndrome: int, graph: DecodingGraph):
+    n_z = sum(1 for st in graph.stabilizers if st.check_type is CheckType.Z)
+    z_syn = syndrome & ((1 << n_z) - 1)
+    x_syn = syndrome >> n_z
+    return z_syn, x_syn, n_z
+
+def _x_sector_logical_mask(graph: DecodingGraph) -> int:
+    """Logical-X analogue for the X-sector (Z-type) correction: data qubits with i == 0."""
+    from .s0_geometry import build_unrotated_planar_surface_code
+    code = build_unrotated_planar_surface_code(graph.d)
+    return sum(1 << q for q, (i, j) in enumerate(code["data"]) if i == 0)
+
+def _decode_impl(syndrome: int, graph: DecodingGraph, diagnostics: bool) -> DecodeResult:
     if syndrome < 0 or syndrome >= (1 << graph.n_checks):
         raise ValueError("syndrome outside graph range")
-    raise NotImplementedError("MWPM decoder stage is not implemented yet")
+    z_syn, x_syn, n_z = _split_syndrome(syndrome, graph)
+    gz = _sector_graph(graph.d, "Z")
+    gx = _sector_graph(graph.d, "X")
+    n = graph.n_data
+    x_logical_mask = _x_sector_logical_mask(graph)
+    if diagnostics:
+        cz, dz = decode_sector_with_diagnostics(z_syn, gz, graph.logZ_mask)
+        cx, dx = decode_sector_with_diagnostics(x_syn, gx, x_logical_mask)
+    else:
+        cz, cx = decode_sector(z_syn, gz), decode_sector(x_syn, gx)
+        dz = dx = None
+    # Packed correction: bits [0,n) = X-type flips fixing the Z-check syndrome;
+    # bits [n,2n) = Z-type flips fixing the X-check syndrome.
+    packed = cz.bitmask | (cx.bitmask << n)
+    reproduced = cz.syndrome_reproduced | (cx.syndrome_reproduced << n_z)
+    logical = popcount(packed & graph.logZ_mask) % 2  # CONTRACT.md: low n bits only
+    correction = Correction(packed, cz.weight + cx.weight, logical, reproduced)
+    if diagnostics:
+        degeneracy = DegeneracyInfo(
+            num_optimal_matchings=dz.num_optimal_matchings * dx.num_optimal_matchings,
+            sectors_present=set(dz.logical_classes),
+            is_degenerate=(len(dz.witness_masks) > 1 or len(dx.witness_masks) > 1),
+            is_logical_tie=dz.is_logical_tie,
+            matching_details=[dz, dx],
+        )
+    else:
+        degeneracy = DegeneracyInfo()
+    solver_info = {
+        "solver": "exact_bitmask_dp_mwpm", "tie_policy": IMPLEMENTATION_RECORD["tie_policy"],
+        "z_sector_weight": cz.weight, "x_sector_weight": cx.weight,
+        "z_sector_matching_cost": cz.matching_cost, "x_sector_matching_cost": cx.matching_cost,
+        "x_sector_logical_class": popcount(cx.bitmask & x_logical_mask) & 1,
+        "packing": "bits[0,n)=X-type correction for Z-checks, bits[n,2n)=Z-type correction for X-checks",
+    }
+    if diagnostics:
+        solver_info["diagnostics_truncated"] = bool(
+            dz.matchings_truncated or dx.matchings_truncated
+            or dz.witnesses_truncated or dx.witnesses_truncated)
+        solver_info["x_sector_is_logical_tie"] = dx.is_logical_tie
+        solver_info["x_sector_logical_classes"] = sorted(dx.logical_classes)
+    return DecodeResult(correction, degeneracy, correction.weight, solver_info)
+
+def decode(syndrome: int, graph: DecodingGraph) -> DecodeResult:
+    """Deterministic exact-MWPM correction; degeneracy fields left unknown (None)."""
+    return _decode_impl(syndrome, graph, diagnostics=False)
 
 def decode_with_diagnostics(syndrome: int, graph: DecodingGraph) -> DecodeResult:
-    if syndrome < 0 or syndrome >= (1 << graph.n_checks):
-        raise ValueError("syndrome outside graph range")
-    raise NotImplementedError("diagnostic enumeration stage is not implemented yet")
+    """As decode(), plus matching/witness enumeration (see truncation flag in solver_info)."""
+    return _decode_impl(syndrome, graph, diagnostics=True)
 
 def validate_graph(graph: DecodingGraph) -> Dict[str, object]:
     return audit_geometry(graph)
