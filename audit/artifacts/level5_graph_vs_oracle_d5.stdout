@@ -1,0 +1,4 @@
+d=5 sector=Z graph_edges=45 column_mismatch_edges=0 uncovered_qubits=0 graph_vs_oracle_syndrome_mismatches=0/1048576 mwpm_samples=2000 max_defects=12 mwpm_failures=0
+d=5 sector=X graph_edges=45 column_mismatch_edges=0 uncovered_qubits=0 graph_vs_oracle_syndrome_mismatches=0/1048576 mwpm_samples=2000 max_defects=12 mwpm_failures=0
+TOTAL_FAILURES=0
+RESULT: PASS

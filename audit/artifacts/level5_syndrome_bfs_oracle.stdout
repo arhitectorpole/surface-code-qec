@@ -1,0 +1,7 @@
+CROSSCHECK d=3 sector=Z syndromes=64 mismatches=0
+CROSSCHECK d=3 sector=X syndromes=64 mismatches=0
+d=5 sector=Z data_qubits=41 checks=20 syndromes=1048576 max_min_weight=10
+  weight_histogram=0:1,1:41,2:748,3:7734,4:47759,5:172178,6:337480,7:321323,8:134899,9:24366,10:2047
+d=5 sector=X data_qubits=41 checks=20 syndromes=1048576 max_min_weight=10
+  weight_histogram=0:1,1:41,2:748,3:7734,4:47759,5:172178,6:337480,7:321323,8:134899,9:24366,10:2047
+RESULT: PASS
